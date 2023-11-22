@@ -1,0 +1,71 @@
+local api = vim.api
+local cmd = api.nvim_create_user_command
+
+cmd('BspCompile', function() require('bsp').compile_build_target() end, { nargs = 0 })
+cmd('BspTest', function() require('bsp').test_build_target() end, { nargs = 0 })
+cmd('BspRun', function() require('bsp').run_build_target() end, { nargs = 0 })
+
+cmd('BspLog', function() vim.cmd(string.format('tabnew %s', require('bsp').get_log_path())) end, { nargs = 0 })
+cmd('BspConsole', function () require('bsp.bsp-console').open() end, { nargs = 0 })
+cmd('BspCleanCache', function() require('bsp').cleancache_build_target() end, { nargs = 0 })
+
+local get_clients_from_cmd_args = function(arg)
+  local bsp = require('bsp')
+  local result = {}
+  for id in (arg or ''):gmatch '(%d+)' do
+    result[id] = bsp.get_client_by_id(tonumber(id))
+  end
+  if vim.tbl_isempty(result) then
+    return require('bsp').get_clients()
+  end
+  return vim.tbl_values(result)
+end
+
+local bsp_get_active_client_ids = function(arg)
+  local bsp = require('bsp')
+  local clients = vim.tbl_map(function(client)
+    return ('%d (%s)'):format(client.id, client.name)
+  end, bsp.get_clients())
+
+  return completion_sort(vim.tbl_filter(function(s)
+    return s:sub(1, #arg) == arg
+  end, clients))
+end
+
+cmd('BspClientRestart', function(info)
+  local detach_clients = {}
+  for _, client in ipairs(get_clients_from_cmd_args(info.args)) do
+    client.stop()
+    detach_clients[client.name] = client
+  end
+  local timer = vim.loop.new_timer()
+  timer:start(
+    500,
+    100,
+    vim.schedule_wrap(function()
+      for client_name, client in pairs(detach_clients) do
+        if client.is_stopped() then
+          detach_clients[client_name] = nil
+        end
+      end
+
+      if next(detach_clients) == nil and not timer:is_closing() then
+        timer:close()
+      end
+    end)
+  )
+end, {
+  desc = 'Manually restart the given build server client(s)',
+  nargs = '?',
+  complete = bsp_get_active_client_ids,
+})
+
+cmd('BspPrintWorkspaceTargets', function()
+  local bsp = require('bsp')
+
+  local clients = bsp.get_clients()
+  for _, client in ipairs(clients) do
+    print("client: " .. client.name .. " build_tagets: " .. vim.inspect(client.build_targets))
+  end
+end, { nargs = 0 })
+

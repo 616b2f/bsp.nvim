@@ -5,17 +5,19 @@ local buffer_number = -1
 ---Write data to the console
 ---@param data string[]
 function M.write(data)
-    M._create()
-    if data then
-        -- Make writable for short period, so we don't get warnings
-        vim.api.nvim_set_option_value("readonly", false, { buf = buffer_number })
+    vim.schedule(function()
+      M._create()
+      if data then
+          -- Make writable for short period, so we don't get warnings
+          vim.api.nvim_set_option_value("readonly", false, { buf = buffer_number })
 
-        vim.api.nvim_buf_set_lines(buffer_number, -1, -1, true, data)
+          vim.api.nvim_buf_set_lines(buffer_number, -1, -1, true, data)
 
-        -- Make readonly again.
-        vim.api.nvim_set_option_value("readonly", true, { buf = buffer_number })
+          -- Make readonly again.
+          vim.api.nvim_set_option_value("readonly", true, { buf = buffer_number })
 
-    end
+      end
+    end)
 end
 
 ---@private

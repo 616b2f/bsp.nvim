@@ -3,12 +3,11 @@ local protocol = require('bsp.protocol')
 local ms = protocol.Methods
 local api = vim.api
 local utils = require('bsp.utils')
-local log = require('bsp.log')
-local bsp_rpc = require('bsp.rpc')
+local bp_rpc = require('bp.rpc')
+local log = require('bp.log')
 local uv = vim.uv
 local validate = vim.validate
-local nvim_err_writeln, nvim_buf_get_lines, nvim_command, nvim_exec_autocmds =
-  api.nvim_err_writeln, api.nvim_buf_get_lines, api.nvim_command, api.nvim_exec_autocmds
+local nvim_err_writeln, nvim_command = api.nvim_err_writeln, api.nvim_command
 
 local BspGroup = vim.api.nvim_create_augroup('bsp', { clear = true })
 
@@ -17,14 +16,14 @@ local bsp = {
 
   handlers = default_handlers,
 
-  -- buf = require('bsp.buf'),
   util = utils,
 
   -- Allow raw RPC access.
-  rpc = bsp_rpc,
+  rpc = bp_rpc,
 
   -- Export these directly from rpc.
-  rpc_response_error = bsp_rpc.rpc_response_error,
+  rpc_response_error = bp_rpc.rpc_response_error,
+  client_errors = bp_rpc.client_errors,
 }
 
 -- maps request name to the required server_capability in the client.
@@ -33,18 +32,6 @@ bsp._request_name_to_capability = {
 }
 
 local wait_result_reason = { [-1] = 'timeout', [-2] = 'interrupted', [-3] = 'error' }
-
---- Returns the buffer number for the given {bufnr}.
----
----@param bufnr (integer|nil) Buffer number to resolve. Defaults to current buffer
----@return integer bufnr
-local function resolve_bufnr(bufnr)
-  validate({ bufnr = { bufnr, 'n', true } })
-  if bufnr == nil or bufnr == 0 then
-    return api.nvim_get_current_buf()
-  end
-  return bufnr
-end
 
 --- Gets the path of the logfile used by the BSP client.
 ---@return string path to log file
@@ -265,8 +252,6 @@ function bsp.findConnectionDetails ()
 end
 
 function bsp.setup()
-  log.set_level(log.levels.DEBUG)
-
   local connection_details_dict = bsp.findConnectionDetails();
   if not connection_details_dict then return end
 
@@ -286,9 +271,6 @@ function bsp.setup()
 end
 
 function bsp.compile_build_target()
-  local bsp = require('bsp')
-  local ms = require('bsp.protocol').Methods
-
   ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
   local client_targets = {}
   local clients = bsp.get_clients()
@@ -325,7 +307,7 @@ function bsp.compile_build_target()
           ms.buildTarget_compile,
           compileParams,
           ---comment
-          ---@param err bsp.ResponseError|nil
+          ---@param err bp.ResponseError|nil
           ---@param result bsp.CompileResult
           ---@param context bsp.HandlerContext
           ---@param config table|nil
@@ -373,7 +355,7 @@ function bsp.test_build_target()
           ms.buildTarget_test,
           testParams,
           ---comment
-          ---@param err bsp.ResponseError|nil
+          ---@param err bp.ResponseError|nil
           ---@param result bsp.TestResult
           ---@param context bsp.HandlerContext
           ---@param config table|nil
@@ -422,7 +404,7 @@ function bsp.run_build_target ()
           ms.buildTarget_run,
           runParams,
           ---comment
-          ---@param err bsp.ResponseError|nil
+          ---@param err bp.ResponseError|nil
           ---@param result bsp.RunResult
           ---@param context bsp.HandlerContext
           ---@param config table|nil
@@ -450,7 +432,7 @@ function bsp.cleancache_build_target()
         ms.buildTarget_cleanCache,
         cleanCacheParams,
         ---comment
-        ---@param err bsp.ResponseError|nil
+        ---@param err bp.ResponseError|nil
         ---@param result bsp.CleanCacheResult
         ---@param context bsp.HandlerContext
         ---@param config table|nil
@@ -526,7 +508,11 @@ function bsp.workspace_request(workspace_dir, method, params, handler)
 
   -- if has client but no clients support the given method, notify the user
   if next(clients) and not method_supported then
-    vim.notify(bsp._unsupported_method(method), vim.log.levels.ERROR)
+    local msg = string.format(
+      'method %s is not supported by any of the servers registered for the workspace directory',
+      method
+    )
+    vim.notify(msg, vim.log.levels.ERROR)
     nvim_command('redraw')
     return {}, function() end
   end
@@ -547,7 +533,7 @@ end
 ---@param workspace_dir (URI) Workspace root directory.
 ---@param method (string) BSP method name
 ---@param params (table|nil) Parameters to send to the server
----@param handler fun(results: table<integer, {error: bsp.ResponseError, result: any}>) (function)
+---@param handler fun(results: table<integer, {error: bp.ResponseError, result: any}>) (function)
 --- Handler called after all requests are completed. Server results are passed as
 --- a `client_id:result` map.
 ---@return function cancel Function that cancels all requests.
@@ -587,7 +573,7 @@ end
 ---@param timeout_ms (integer|nil) Maximum time in milliseconds to wait for a
 ---                               result. Defaults to 1000
 ---
----@return table<integer, {err: bsp.ResponseError, result: any}>|nil (table) result Map of client_id:request_result.
+---@return table<integer, {err: bp.ResponseError, result: any}>|nil (table) result Map of client_id:request_result.
 ---@return string|nil err On timeout, cancel, or error, `err` is a string describing the failure reason, and `result` is nil.
 function bsp.workspace_request_sync(workspace_dir, method, params, timeout_ms)
   local request_results
@@ -639,41 +625,27 @@ function bsp.start_client(config)
 
   local handlers = config.handlers or {}
   local name = config.name or tostring(client_id)
-  local log_prefix = string.format('BSP[%s]', name)
+  local log_context = string.format('bsp:%s', name)
+  local logger = log.new_logger(log_context)
 
+  ---@type bp.rpc.Dispatchers
   local dispatch = {}
 
   --- Returns the handler associated with an BSP method.
   --- Returns the default handler if the user hasn't set a custom one.
   ---
-  ---@param method (string) BSP method name
+  ---@param method string BSP method name
   ---@return bsp-handler|nil The handler for the given method, if defined, or the default from |vim.bsp.handlers|
   local function resolve_handler(method)
     return handlers[method] or default_handlers[method]
   end
 
   ---@private
-  --- Called by the client when trying to call a method that's not
-  --- supported in any of the servers registered for the current workspace directory.
-  ---@param method (string) name of the method
-  function bsp._unsupported_method(method)
-    local msg = string.format(
-      'method %s is not supported by any of the servers registered for the workspace directory',
-      method
-    )
-    log.warn(msg)
-    return msg
-  end
-
-  ---@private
-  --- Handles a notification sent by an BSP server by invoking the
-  --- corresponding handler.
-  ---
-  ---@param method (string) BSP method name
-  ---@param params (table) The parameters for that method.
+  ---@param method string BSP method name
+  ---@param params table The parameters for that method.
   function dispatch.notification(method, params)
-    if log.trace() then
-      log.trace('notification', method, params)
+    if logger.trace() then
+      logger.trace('notification', method, params)
     end
     local handler = resolve_handler(method)
     if handler then
@@ -683,40 +655,36 @@ function bsp.start_client(config)
   end
 
   ---@private
-  --- Handles a request from an BSP server by invoking the corresponding handler.
-  ---
-  ---@param method (string) BSP method name
-  ---@param params (table) The parameters for that method
+  ---@param method string BSP method name
+  ---@param params table The parameters for that method
   function dispatch.server_request(method, params)
-    if log.trace() then
-      log.trace('server_request', method, params)
+    if logger.trace() then
+      logger.trace('server_request', method, params)
     end
     local handler = resolve_handler(method)
     if handler then
-      if log.trace() then
-        log.trace('server_request: found handler for', method)
+      if logger.trace() then
+        logger.trace('server_request: found handler for', method)
       end
       return handler(nil, params, { method = method, client_id = client_id })
     end
-    if log.warn() then
-      log.warn('server_request: no handler found for', method)
+    if logger.warn() then
+      logger.warn('server_request: no handler found for', method)
     end
     return nil, bsp.rpc_response_error(protocol.ErrorCodes.MethodNotFound)
   end
 
-  --- Logs the given error to the BSP log and to the error buffer.
-  --- @param code integer Error code
-  --- @param err any Error arguments
+  ---Logs the given error to the BSP log and to the error buffer.
+  ---@param code integer Error code
+  ---@param err any Error arguments
   local function write_error(code, err)
-    if log.error() then
-      log.error(log_prefix, 'on_error', { code = bsp.client_errors[code], err = err })
+    if logger.error() then
+      logger.error('on_error', { code = bsp.client_errors[code], err = err })
     end
-    err_message(log_prefix, ': Error ', bsp.client_errors[code], ': ', vim.inspect(err))
+    err_message(log_context, ': Error ', bsp.client_errors[code], ': ', vim.inspect(err))
   end
 
   ---@private
-  --- Invoked when the client operation throws an error.
-  ---
   ---@param code (integer) Error code
   ---@param err (...) Other arguments may be passed depending on the error kind
   ---@see vim.bsp.rpc.client_errors for possible errors. Use
@@ -726,29 +694,19 @@ function bsp.start_client(config)
     if config.on_error then
       local status, usererr = pcall(config.on_error, code, err)
       if not status then
-        local _ = log.error() and log.error(log_prefix, 'user on_error failed', { err = usererr })
-        err_message(log_prefix, ' user on_error failed: ', tostring(usererr))
+        local _ = logger.error() and logger.error('user on_error failed', { err = usererr })
+        err_message(log_context, ' user on_error failed: ', tostring(usererr))
       end
     end
   end
 
-  --- Reset defaults set by `set_defaults`.
-  --- Must only be called if the last client attached to a buffer exits.
-  local function reset_defaults(bufnr)
-  end
-
   ---@private
-  --- Invoked on client exit.
-  ---
   ---@param code (integer) exit code of the process
   ---@param signal (integer) the signal used to terminate (if any)
   function dispatch.on_exit(code, signal)
     if config.on_exit then
       pcall(config.on_exit, code, signal, client_id)
     end
-
-    local client = active_clients[client_id] and active_clients[client_id]
-      or uninitialized_clients[client_id]
 
     -- Schedule the deletion of the client object so that it exists in the execution of BspDetach
     -- autocommands
@@ -774,11 +732,16 @@ function bsp.start_client(config)
   if type(cmd) == 'function' then
     rpc = cmd(dispatch)
   else
-    rpc = bsp_rpc.start(cmd, cmd_args, dispatch, {
-      cwd = config.cmd_cwd,
-      env = config.cmd_env,
-      detached = config.detached,
-    })
+    rpc = bp_rpc.start(
+      cmd,
+      cmd_args,
+      dispatch,
+      {
+        cwd = config.cmd_cwd,
+        env = config.cmd_env,
+        detached = config.detached,
+      },
+      logger)
   end
 
   -- Return nil if client fails to start
@@ -839,6 +802,7 @@ function bsp.start_client(config)
   uninitialized_clients[client_id] = client
 
   local function initialize()
+    --TODO use traces enum from BP
     local valid_traces = {
       off = 'off',
       messages = 'messages',
@@ -902,9 +866,9 @@ function bsp.start_client(config)
       end
     end
 
-    local _ = log.trace() and log.trace(log_prefix, 'InitializeBuildParams', initialize_params)
+    local _ = logger.trace() and logger.trace('InitializeBuildParams', initialize_params)
     --- Initialize request, has always to be send first.
-    ---@param init_err bsp.ResponseError|nil
+    ---@param init_err bp.ResponseError|nil
     ---@param result bsp.InitializeBuildResult
     rpc.request(ms.build_initialize, initialize_params, function(init_err, result)
       assert(not init_err, tostring(init_err))
@@ -933,9 +897,8 @@ function bsp.start_client(config)
       -- load project related data and save it in the client properties
       client.load_project_data()
 
-      local _ = log.info()
-        and log.info(
-          log_prefix,
+      local _ = logger.info()
+        and logger.info(
           'server_capabilities',
           { server_capabilities = client.server_capabilities }
         )
@@ -961,7 +924,7 @@ function bsp.start_client(config)
   ---successful, then it will return {request_id} as the
   ---second result. You can use this with `client.cancel_request(request_id)`
   ---to cancel the-request.
-  ---@see |bsp.buf_request_all()|
+  ---@see |bsp.workspace_request_all()|
   function client.request(method, params, handler, bufnr)
     if not handler then
       handler = assert(
@@ -969,9 +932,8 @@ function bsp.start_client(config)
         string.format('not found: %q request handler for client %q.', method, client.name)
       )
     end
-    -- bufnr = resolve_bufnr(bufnr)
-    if log.debug() then
-      log.debug(log_prefix, 'client.request', client_id, method, params, handler, bufnr)
+    if logger.debug() then
+      logger.debug('client.request', client_id, method, params, handler, bufnr)
     end
     local success, request_id = rpc.request(method, params, function(err, result)
       local context = {
@@ -1017,12 +979,12 @@ function bsp.start_client(config)
   ---@param timeout_ms? integer Maximum time in milliseconds to wait for
   ---                               a result. Defaults to 1000
   ---@param bufnr integer Buffer handle (0 for current).
-  ---@return {err: bsp.ResponseError|nil, result:any}|nil, string|nil err # a dictionary, where
+  ---@return {err: bp.ResponseError|nil, result:any}|nil, string|nil err # a dictionary, where
   --- `err` and `result` come from the |bsp-handler|.
   --- On timeout, cancel or error, returns `(nil, err)` where `err` is a
   --- string describing the failure reason. If the request was unsuccessful
   --- returns `nil`.
-  ---@see |vim.bsp.buf_request_sync()|
+  ---@see |bsp.workspace_request_sync()|
   function client.request_sync(method, params, timeout_ms, bufnr)
     local request_result = nil
     local function _sync_handler(err, result)
@@ -1144,7 +1106,7 @@ function bsp.start_client(config)
   function client.load_project_data()
     --TODO: handle error case properly
     local request_success, request_id = client.request(ms.workspace_buildTargets, nil,
-      ---@param err bsp.ResponseError|nil
+      ---@param err bp.ResponseError|nil
       ---@param result bsp.WorkspaceBuildTargetsResult
       ---@param context bsp.HandlerContext
       ---@param config table|nil
@@ -1161,7 +1123,7 @@ function bsp.start_client(config)
               targets = build_target_identifier
           }
           local request_success, request_id = client.request(ms.buildTarget_sources, sources_params,
-            ---@param err bsp.ResponseError|nil
+            ---@param err bp.ResponseError|nil
             ---@param result bsp.SourcesResult
             ---@param context bsp.HandlerContext
             ---@param config table|nil
@@ -1178,7 +1140,7 @@ function bsp.start_client(config)
           }
           if client.server_capabilities.resourcesProvider then
             local request_success, request_id = client.request(ms.buildTarget_resources, resources_params,
-              ---@param err bsp.ResponseError|nil
+              ---@param err bp.ResponseError|nil
               ---@param result bsp.ResourcesResult
               ---@param context bsp.HandlerContext
               ---@param config table|nil
@@ -1196,7 +1158,7 @@ function bsp.start_client(config)
           }
           if client.server_capabilities.dependencySourcesProvider then
             local request_success, request_id = client.request(ms.buildTarget_dependencySources, dependency_sources_params,
-              ---@param err bsp.ResponseError|nil
+              ---@param err bp.ResponseError|nil
               ---@param result bsp.DependencySourcesResult
               ---@param context bsp.HandlerContext
               ---@param config table|nil
@@ -1214,7 +1176,7 @@ function bsp.start_client(config)
           }
           if client.server_capabilities.outputPathsProvider then
             local request_success, request_id = client.request(ms.buildTarget_outputPaths, output_paths_params,
-              ---@param err bsp.ResponseError|nil
+              ---@param err bp.ResponseError|nil
               ---@param result bsp.OutputPathsResult
               ---@param context bsp.HandlerContext
               ---@param config table|nil
@@ -1257,7 +1219,7 @@ function bsp.start_client(config)
           client.name,
           cmdname
         ),
-        log.levels.WARN
+        vim.log.levels.WARN
       )
       return
     end

@@ -5,8 +5,6 @@ local api = vim.api
 
 local M = {}
 
-local namespace = vim.api.nvim_create_namespace('bsp')
-
 --- Writes to error buffer.
 ---@param ... string Will be concatenated before being written
 local function err_message(...)
@@ -15,23 +13,25 @@ local function err_message(...)
 end
 
 --- Writes to BSP console buffer
+---@param client_name string Name of the client
 ---@param client_id integer ID of the client
 ---@param eventtime integer? Time when the event happened
 ---@param data string Will be concatenated before being written
-local function write_to_console_with_time(client_id, eventtime, data)
+local function write_to_console_with_time(client_name, client_id, eventtime, data)
   local time = '0000000000000'
   if eventtime then
     time = tostring(eventtime)
   end
-  local message = 'BSP[id=' .. tostring(client_id) .. '] ' .. time .. ': ' .. string.gsub(data, '\n', '')
+  local message = string.format('[bsp:%s(id=%s)] %s: %s', client_name, tostring(client_id), time, string.gsub(data, '\n', ''))
   console.write({message})
 end
 
 --- Writes to BSP console buffer
+---@param client_name string Name of the client
 ---@param client_id integer ID of the client
 ---@param data string Will be concatenated before being written
-local function write_to_console(client_id, data)
-  local message = 'BSP[id=' .. tostring(client_id) .. '] ' .. string.gsub(data, '\n', '')
+local function write_to_console(client_name, client_id, data)
+  local message = string.format('[bsp:%s(id=%s)] %s', client_name, tostring(client_id), string.gsub(data, '\n', ''))
   console.write({message})
 end
 
@@ -86,7 +86,6 @@ end
 
 -- M[ms.workspace_buildTargets] = function(_, result, ctx)
 --   local bsp = require('bsp')
---   local log = require('bsp.log')
 --   local client = bsp.get_client_by_id(ctx.client_id)
 --   if not client then
 --     err_message('BSP[id=', tostring(ctx.client_id), '] client has shut down during progress update')
@@ -104,14 +103,13 @@ end
 ---@param ctx bsp.HandlerContext
 M[ms.run_printStdout] = function(_, result, ctx)
   local bsp = require('bsp')
-  local log = require('bsp.log')
   local client = bsp.get_client_by_id(ctx.client_id)
   if not client then
     err_message('BSP[id=', tostring(ctx.client_id), '] client has shut down during progress update')
     return vim.NIL
   end
 
-  write_to_console(ctx.client_id, result.task.id, vim.inspect(result))
+  write_to_console(client.name, ctx.client_id, result.task.id, vim.inspect(result))
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onrunprintstderr-notification
@@ -119,14 +117,13 @@ end
 ---@param ctx bsp.HandlerContext
 M[ms.run_printStderr] = function(_, result, ctx)
   local bsp = require('bsp')
-  local log = require('bsp.log')
   local client = bsp.get_client_by_id(ctx.client_id)
   if not client then
     err_message('BSP[id=', tostring(ctx.client_id), '] client has shut down during progress update')
     return vim.NIL
   end
 
-  write_to_console(ctx.client_id, vim.inspect(result))
+  write_to_console(client.name, ctx.client_id, vim.inspect(result))
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onbuildlogmessage-notification
@@ -134,14 +131,13 @@ end
 ---@param ctx bsp.HandlerContext
 M[ms.build_logMessage] = function(_, result, ctx)
   local bsp = require('bsp')
-  local log = require('bsp.log')
   local client = bsp.get_client_by_id(ctx.client_id)
   if not client then
     err_message('BSP[id=', tostring(ctx.client_id), '] client has shut down during progress update')
     return vim.NIL
   end
 
-  write_to_console(ctx.client_id, vim.inspect(result))
+  write_to_console(client.name, ctx.client_id, vim.inspect(result))
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onbuildpublishdiagnostics-notification
@@ -149,7 +145,6 @@ end
  --@param ctx bsp.HandlerContext
 M[ms.build_publishDiagnostics] = function(_, result, ctx)
   local bsp = require('bsp')
-  local log = require('bsp.log')
   local client = bsp.get_client_by_id(ctx.client_id)
   if not client then
     err_message('BSP[id=', tostring(ctx.client_id), '] client has shut down during progress update')
@@ -157,15 +152,17 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
   end
 
   local diagnostics = toqflist(result.textDocument.uri, result.diagnostics)
-  if result.reset then
-    vim.fn.setqflist({}, 'r')
-  else
-    vim.fn.setqflist({}, 'a', {
-      title = "bsp-diagnostics",
-      items = diagnostics
-    })
-    vim.cmd('copen')
-  end
+  vim.schedule(function ()
+    if result.reset then
+      vim.fn.setqflist({}, 'r')
+    else
+      vim.fn.setqflist({}, 'a', {
+        title = "bsp-diagnostics",
+        items = diagnostics
+      })
+      vim.cmd('copen')
+    end
+  end)
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onbuildshowmessage-notification
@@ -173,14 +170,13 @@ end
 ---@param ctx bsp.HandlerContext
 M[ms.build_showMessage] = function(_, result, ctx)
   local bsp = require('bsp')
-  local log = require('bsp.log')
   local client = bsp.get_client_by_id(ctx.client_id)
   if not client then
     err_message('BSP[id=', tostring(ctx.client_id), '] client has shut down during progress update')
     return vim.NIL
   end
 
-  write_to_console(ctx.client_id, vim.inspect(result))
+  write_to_console(client.name, ctx.client_id, vim.inspect(result))
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onbuildtargetdidchange-notification
@@ -188,7 +184,6 @@ end
 ---@param ctx bsp.HandlerContext
 M[ms.buildTarget_didChange] = function(_, result, ctx)
   local bsp = require('bsp')
-  local log = require('bsp.log')
   local client = bsp.get_client_by_id(ctx.client_id)
   if not client then
     err_message('BSP[id=', tostring(ctx.client_id), '] client has shut down during progress update')
@@ -219,12 +214,14 @@ M[ms.build_taskStart] = function(_, result, ctx)
 
   client.progress:push(result)
 
-  api.nvim_exec_autocmds('User', {
-    pattern = 'BspProgress:start',
-    group = bsp.BspGroup,
-    modeline = false,
-    data = { client_id = ctx.client_id, result = result },
-  })
+  vim.schedule(function()
+    api.nvim_exec_autocmds('User', {
+      pattern = 'BspProgress:start',
+      group = bsp.BspGroup,
+      modeline = false,
+      data = { client_id = ctx.client_id, result = result },
+    })
+  end)
 end
 
 --see: https://build-server-protocol.github.io/docs/specification#onbuildtaskprogress-notification
@@ -240,12 +237,14 @@ M[ms.build_taskProgress] = function(_, result, ctx)
 
   client.progress:push(result)
 
-  api.nvim_exec_autocmds('User', {
-    pattern = 'BspProgress:progress',
-    group = bsp.BspGroup,
-    modeline = false,
-    data = { client_id = ctx.client_id, result = result },
-  })
+  vim.schedule(function()
+    api.nvim_exec_autocmds('User', {
+      pattern = 'BspProgress:progress',
+      group = bsp.BspGroup,
+      modeline = false,
+      data = { client_id = ctx.client_id, result = result },
+    })
+  end)
 end
 
 --see: https://build-server-protocol.github.io/docs/specification#onbuildtaskprogress-notification
@@ -261,12 +260,14 @@ M[ms.build_taskFinish] = function(_, result, ctx)
 
   client.progress:push(result)
 
-  api.nvim_exec_autocmds('User', {
-    pattern = 'BspProgress:finish',
-    group = bsp.BspGroup,
-    modeline = false,
-    data = { client_id = ctx.client_id, result = result },
-  })
+  vim.schedule(function()
+    api.nvim_exec_autocmds('User', {
+      pattern = 'BspProgress:finish',
+      group = bsp.BspGroup,
+      modeline = false,
+      data = { client_id = ctx.client_id, result = result },
+    })
+  end)
 end
 
 return M

@@ -1,6 +1,5 @@
 local uv = vim.uv
-local log = require('bsp.log')
-local protocol = require('bsp.protocol')
+local protocol = require('bp.protocol')
 local validate, schedule, schedule_wrap = vim.validate, vim.schedule, vim.schedule_wrap
 
 local is_win = uv.os_uname().version:find('Windows')
@@ -26,15 +25,15 @@ local function format_message_with_content_length(encoded_message)
   })
 end
 
----@alias bsp.rpc.Headers table<string, string>|{content_length: integer}
+---@alias bp.rpc.Headers table<string, string>|{content_length: integer}
 
---- Parses an BSP Message's header
+--- Parses an BP Message's header
 ---
 ---@param header string The header to parse.
----@return bsp.rpc.Headers #parsed headers
+---@return bp.rpc.Headers #parsed headers
 local function parse_headers(header)
   assert(type(header) == 'string', 'header must be a string')
-  ---@type bsp.rpc.Headers
+  ---@type bp.rpc.Headers
   local headers = {}
   for line in vim.gsplit(header, '\r\n', { plain = true }) do
     if line == '' then
@@ -47,7 +46,6 @@ local function parse_headers(header)
       key = key:lower():gsub('%-', '_')
       headers[key] = value
     else
-      local _ = log.error() and log.error('invalid header line %q', line)
       error(string.format('invalid header line %q', line))
     end
   end
@@ -142,7 +140,7 @@ M.client_errors = {
 
 M.client_errors = vim.tbl_add_reverse_lookup(M.client_errors)
 
---- Constructs an error message from an BSP error object.
+--- Constructs an error message from an BP error object.
 ---
 ---@param err (table) The error object
 ---@return (string) #The formatted error message
@@ -151,7 +149,7 @@ function M.format_rpc_error(err)
     err = { err, 't' },
   })
 
-  -- There is ErrorCodes in the BSP specification,
+  -- There is ErrorCodes in the BP specification,
   -- but in ResponseError.code it is not used and the actual type is number.
   ---@type string
   local code
@@ -173,17 +171,17 @@ function M.format_rpc_error(err)
   return table.concat(message_parts, ' ')
 end
 
----@class bsp.rpc.RpcError
----@field code integer RPC error code defined in |bsp.protocol.ErrorCodes|
+---@class bp.rpc.RpcError
+---@field code integer RPC error code defined in |bp.protocol.ErrorCodes|
 ---@field message string? arbitrary message to send to server
 ---@field data any? arbitrary data to send to server
 
 --- Creates an RPC response object/table.
 ---
----@param code integer RPC error code defined in |bsp.protocol.ErrorCodes|
+---@param code integer RPC error code defined in |bp.protocol.ErrorCodes|
 ---@param message string? arbitrary message to send to server
 ---@param data any? arbitrary data to send to server
----@return bsp.rpc.RpcError
+---@return bp.rpc.RpcError
 function M.rpc_response_error(code, message, data)
   -- TODO should this error or just pick a sane error (like InternalError)?
   local code_name = assert(protocol.ErrorCodes[code], 'Invalid RPC error code')
@@ -196,54 +194,9 @@ function M.rpc_response_error(code, message, data)
   })
 end
 
-local default_dispatchers = {}
-
----@private
---- Default dispatcher for notifications sent to an BSP server.
----
----@param method (string) The invoked BSP method
----@param params (table) Parameters for the invoked BSP method
-function default_dispatchers.notification(method, params)
-  local _ = log.debug() and log.debug('notification', method, params)
-end
-
----@private
---- Default dispatcher for requests sent to an BSP server.
----
----@param method (string) The invoked BSP method
----@param params (table) Parameters for the invoked BSP method
----@return nil
----@return bsp.rpc.RpcError #|bsp.protocol.ErrorCodes.MethodNotFound|
-function default_dispatchers.server_request(method, params)
-  local _ = log.debug() and log.debug('server_request', method, params)
-  return nil, M.rpc_response_error(protocol.ErrorCodes.MethodNotFound)
-end
-
----@private
---- Default dispatcher for when a client exits.
----
----@param code (integer) Exit code
----@param signal (integer) Number describing the signal used to terminate (if
----any)
-function default_dispatchers.on_exit(code, signal)
-  local _ = log.info() and log.info('client_exit', { code = code, signal = signal })
-end
-
----@private
---- Default dispatcher for client errors.
----
----@param code (integer) Error code
----@param err (any) Details about the error
----any)
-function default_dispatchers.on_error(code, err)
-  local _ = log.error() and log.error('client_error:', M.client_errors[code], err)
-end
-
----@cast default_dispatchers bsp.rpc.Dispatchers
-
 ---@private
 function M.create_read_loop(handle_body, on_no_chunk, on_error)
-  local parse_chunk = coroutine.wrap(request_parser_loop) --[[@as fun(chunk: string?): bsp.rpc.Headers?, string?]]
+  local parse_chunk = coroutine.wrap(request_parser_loop) --[[@as fun(chunk: string?): bp.rpc.Headers?, string?]]
   parse_chunk()
   return function(err, chunk)
     if err then
@@ -270,19 +223,21 @@ function M.create_read_loop(handle_body, on_no_chunk, on_error)
   end
 end
 
----@class bsp.rpc.RpcClient
+---@class bp.rpc.RpcClient
 ---@field message_index integer
 ---@field message_callbacks table<integer, function> dict of message_id to callback
 ---@field notify_reply_callbacks table<integer, function> dict of message_id to callback
----@field transport bsp.rpc.Transport
----@field dispatchers bsp.rpc.Dispatchers
+---@field transport bp.rpc.Transport
+---@field dispatchers bp.rpc.Dispatchers
+---@field logger Logger
 
----@class bsp.rpc.RpcClient
+---@class bp.rpc.RpcClient
 local Client = {}
 
 ---@private
 function Client:encode_and_send(payload)
-  local _ = log.debug() and log.debug('rpc.send', payload)
+  local logger = self.logger
+  local _ = logger.debug() and logger.debug('rpc.send', payload)
   if self.transport.is_closing() then
     return false
   end
@@ -295,9 +250,9 @@ function Client:encode_and_send(payload)
 end
 
 ---@private
---- Sends a notification to the BSP server.
----@param method (string) The invoked BSP method
----@param params (any) Parameters for the invoked BSP method
+--- Sends a notification to the BP server.
+---@param method (string) The invoked BP method
+---@param params (any) Parameters for the invoked BP method
 ---@return boolean `true` if notification could be sent, `false` if not
 function Client:notify(method, params)
   return self:encode_and_send({
@@ -308,7 +263,7 @@ function Client:notify(method, params)
 end
 
 ---@private
---- sends an error object to the remote BSP process.
+--- sends an error object to the remote BP process.
 function Client:send_response(request_id, err, result)
   return self:encode_and_send({
     id = request_id,
@@ -319,11 +274,11 @@ function Client:send_response(request_id, err, result)
 end
 
 ---@private
---- Sends a request to the BSP server and runs {callback} upon response.
+--- Sends a request to the BP server and runs {callback} upon response.
 ---
----@param method (string) The invoked BSP method
----@param params (table?) Parameters for the invoked BSP method
----@param callback fun(err: bsp.ResponseError?, result: any) Callback to invoke
+---@param method (string) The invoked BP method
+---@param params (table?) Parameters for the invoked BP method
+---@param callback fun(err: bp.ResponseError?, result: any) Callback to invoke
 ---@param notify_reply_callback (function?) Callback to invoke as soon as a request is no longer pending
 ---@return boolean success, integer? request_id true, request_id if request could be sent, `false` if not
 function Client:request(method, params, callback, notify_reply_callback)
@@ -403,10 +358,11 @@ function Client:handle_body(body)
     self:on_error(M.client_errors.INVALID_SERVER_JSON, decoded)
     return
   end
-  local _ = log.debug() and log.debug('rpc.receive', decoded)
+  local logger = self.logger
+  local _ = logger.debug() and logger.debug('rpc.receive', decoded)
 
   if type(decoded.method) == 'string' and decoded.id then
-    ---@type bsp.rpc.RpcError?
+    ---@type bp.rpc.RpcError?
     local err
     -- Schedule here so that the users functions don't trigger an error and
     -- we can still use the result.
@@ -419,8 +375,8 @@ function Client:handle_body(body)
           decoded.method,
           decoded.params
         )
-        local _ = log.debug()
-          and log.debug(
+        local _ = logger.debug()
+          and logger.debug(
             'server_request: callback result',
             { status = status, result = result, err = err }
           )
@@ -434,7 +390,7 @@ function Client:handle_body(body)
             )
           end
           if err then
-            ---@cast err bsp.rpc.RpcError
+            ---@cast err bp.rpc.RpcError
             assert(
               type(err) == 'table',
               'err must be a table. Use rpc_response_error to help format errors.'
@@ -475,7 +431,7 @@ function Client:handle_body(body)
     if decoded.error then
       local mute_error = false
       if decoded.error.code == protocol.ErrorCodes.RequestCancelled then
-        local _ = log.debug() and log.debug('Received cancellation ack', decoded)
+        local _ = logger.debug() and logger.debug('Received cancellation ack', decoded)
         mute_error = true
       end
 
@@ -511,7 +467,7 @@ function Client:handle_body(body)
       )
     else
       self:on_error(M.client_errors.NO_RESULT_CALLBACK_FOUND, decoded)
-      local _ = log.error() and log.error('No callback found for server response id ' .. result_id)
+      local _ = logger.error() and logger.error('No callback found for server response id ' .. result_id)
     end
   elseif type(decoded.method) == 'string' then
     -- Notification
@@ -527,27 +483,29 @@ function Client:handle_body(body)
   end
 end
 
----@class bsp.rpc.Transport
+---@class bp.rpc.Transport
 ---@field write fun(msg: string): nil
 ---@field is_closing fun(): boolean|nil
 ---@field terminate fun(): nil
 
----@param dispatchers bsp.rpc.Dispatchers
----@param transport bsp.rpc.Transport
----@return bsp.rpc.RpcClient
-local function new_client(dispatchers, transport)
+---@param dispatchers bp.rpc.Dispatchers
+---@param transport bp.rpc.Transport
+---@param logger Logger
+---@return bp.rpc.RpcClient
+local function new_client(dispatchers, transport, logger)
   local state = {
     message_index = 0,
     message_callbacks = {},
     notify_reply_callbacks = {},
     transport = transport,
     dispatchers = dispatchers,
+    logger = logger,
   }
   return setmetatable(state, { __index = Client })
 end
 
----@param client bsp.rpc.RpcClient
----@return bsp.rpc.PublicRpcClient
+---@param client bp.rpc.RpcClient
+---@return bp.rpc.PublicRpcClient
 local function public_client(client)
   local result = {}
 
@@ -561,20 +519,20 @@ local function public_client(client)
     client.transport.terminate()
   end
 
-  --- Sends a request to the BSP server and runs {callback} upon response.
+  --- Sends a request to the BP server and runs {callback} upon response.
   ---
-  ---@param method (string) The invoked BSP method
-  ---@param params (table?) Parameters for the invoked BSP method
-  ---@param callback fun(err: bsp.ResponseError | nil, result: any) Callback to invoke
+  ---@param method (string) The invoked BP method
+  ---@param params (table?) Parameters for the invoked BP method
+  ---@param callback fun(err: bp.ResponseError | nil, result: any) Callback to invoke
   ---@param notify_reply_callback (function?) Callback to invoke as soon as a request is no longer pending
   ---@return boolean success, integer? request_id true, message_id if request could be sent, `false` if not
   function result.request(method, params, callback, notify_reply_callback)
     return client:request(method, params, callback, notify_reply_callback)
   end
 
-  --- Sends a notification to the BSP server.
-  ---@param method (string) The invoked BSP method
-  ---@param params (table?) Parameters for the invoked BSP method
+  --- Sends a notification to the BP server.
+  ---@param method (string) The invoked BP method
+  ---@param params (table?) Parameters for the invoked BP method
   ---@return boolean `true` if notification could be sent, `false` if not
   function result.notify(method, params)
     return client:notify(method, params)
@@ -583,46 +541,14 @@ local function public_client(client)
   return result
 end
 
----@param dispatchers bsp.rpc.Dispatchers?
----@return bsp.rpc.Dispatchers
-local function merge_dispatchers(dispatchers)
-  if dispatchers then
-    local user_dispatchers = dispatchers
-    dispatchers = {}
-    for dispatch_name, default_dispatch in pairs(default_dispatchers) do
-      ---@cast dispatch_name string
-      ---@cast default_dispatch function
-      local user_dispatcher = user_dispatchers[dispatch_name] --[[@as function]]
-      if user_dispatcher then
-        if type(user_dispatcher) ~= 'function' then
-          error(string.format('dispatcher.%s must be a function', dispatch_name))
-        end
-        -- server_request is wrapped elsewhere.
-        if
-          not (dispatch_name == 'server_request' or dispatch_name == 'on_exit') -- TODO this blocks the loop exiting for some reason.
-        then
-          user_dispatcher = schedule_wrap(user_dispatcher)
-        end
-        dispatchers[dispatch_name] = user_dispatcher
-      else
-        dispatchers[dispatch_name] = default_dispatch
-      end
-    end
-  else
-    dispatchers = default_dispatchers
-  end
-  return dispatchers
-end
-
---- Create a BSP RPC client factory that connects via TCP to the given host
+--- Create a BP RPC client factory that connects via TCP to the given host
 --- and port
 ---
 ---@param host string host to connect to
 ---@param port integer port to connect to
----@return fun(dispatchers: bsp.rpc.Dispatchers): bsp.rpc.PublicRpcClient #function intended to be passed to |bsp.rpc.start_client| or |bsp.start| on the field cmd
+---@return fun(dispatchers: bp.rpc.Dispatchers, logger: Logger): bp.rpc.PublicRpcClient #function intended to be passed to |bp.rpc.start_client| or |bp.start| on the field cmd
 function M.connect(host, port)
-  return function(dispatchers)
-    dispatchers = merge_dispatchers(dispatchers)
+  return function(dispatchers, logger)
     local tcp = assert(uv.new_tcp(), string.format('could not connect to %s:%s', host, port))
     local closing = false
     local transport = {
@@ -641,7 +567,7 @@ function M.connect(host, port)
         end
       end,
     }
-    local client = new_client(dispatchers, transport)
+    local client = new_client(dispatchers, transport, logger)
     tcp:connect(host, port, function(err)
       if err then
         vim.schedule(function()
@@ -664,31 +590,35 @@ function M.connect(host, port)
   end
 end
 
----@alias bsp.rpc.Dispatcher fun(method: string, params: table<string, any>):nil, bsp.rpc.RpcError?
----@alias bsp.rpc.on_error fun(code: integer, ...: any)
----@alias bsp.rpc.on_exit fun(code: integer, signal: integer)
+---@alias bp.rpc.Dispatcher fun(method: string, params: table<string, any>):nil, bp.rpc.RpcError?
+---@alias bp.rpc.on_error fun(client: bp.rpc.RpcClient, code: integer, ...: any)
+---@alias bp.rpc.on_exit fun(code: integer, signal: integer)
 
----@class bsp.rpc.Dispatchers
----@field notification bsp.rpc.Dispatcher
----@field server_request bsp.rpc.Dispatcher
----@field on_exit bsp.rpc.on_error
----@field on_error bsp.rpc.on_exit
+---@class bp.rpc.Dispatchers
+---Handles a notification sent by an BSP server by invoking the
+---corresponding handler.
+---@field notification bp.rpc.Dispatcher
+---Handles a request from an BSP server by invoking the corresponding handler.
+---@field server_request bp.rpc.Dispatcher
+---Invoked on client exit.
+---@field on_exit bp.rpc.on_error
+---Invoked when the client operation throws an error.
+---@field on_error bp.rpc.on_exit
 
----@class bsp.rpc.PublicRpcClient
----@field request fun(method: string, params: table?, callback: fun(err: bsp.ResponseError | nil, result: any), notify_reply_callback:function?)
+---@class bp.rpc.PublicRpcClient
+---@field request fun(method: string, params: table?, callback: fun(err: bp.ResponseError | nil, result: any), notify_reply_callback:function?)
 ---@field notify fun(method: string, params: any)
 ---@field is_closing fun(): boolean
 ---@field terminate fun(): nil
 
---- Create a BSP RPC client factory that connects via named pipes (Windows)
+--- Create a BP RPC client factory that connects via named pipes (Windows)
 --- or unix domain sockets (Unix) to the given pipe_path (file path on
 --- Unix and name on Windows)
 ---
 ---@param pipe_path string file path of the domain socket (Unix) or name of the named pipe (Windows) to connect to
----@return fun(dispatchers: bsp.rpc.Dispatchers): bsp.rpc.PublicRpcClient #function intended to be passed to |bsp.rpc.start_client| or |bsp.start| on the field cmd
+---@return fun(dispatchers: bp.rpc.Dispatchers, logger: Logger): bp.rpc.PublicRpcClient #function intended to be passed to |bp.rpc.start_client| or |bp.start| on the field cmd
 function M.connect_to_pipe(pipe_path)
-  return function(dispatchers)
-    dispatchers = merge_dispatchers(dispatchers)
+  return function(dispatchers, logger)
     local pipe =
       assert(uv.new_pipe(false), string.format('pipe with name %s could not be opened.', pipe_path))
     local closing = false
@@ -708,7 +638,7 @@ function M.connect_to_pipe(pipe_path)
         end
       end,
     }
-    local client = new_client(dispatchers, transport)
+    local client = new_client(dispatchers, transport, logger)
     pipe:connect(pipe_path, function(err)
       if err then
         vim.schedule(function()
@@ -731,43 +661,45 @@ function M.connect_to_pipe(pipe_path)
   end
 end
 
----@class bsp.rpc.ExtraSpawnParams
----@field cwd? string Working directory for the BSP server process
----@field detached? boolean Detach the BSP server process from the current process
----@field env? table<string,string> Additional environment variables for BSP server process. See |vim.system|
+---@class bp.rpc.ExtraSpawnParams
+---@field cwd? string Working directory for the BP server process
+---@field detached? boolean Detach the BP server process from the current process
+---@field env? table<string,string> Additional environment variables for BP server process. See |vim.system|
 
---- Starts an BSP server process and create an BSP RPC client object to
+--- Starts an BP server process and create an BP RPC client object to
 --- interact with it. Communication with the spawned process happens via stdio. For
---- communication via TCP, spawn a process manually and use |bsp.rpc.connect()|
+--- communication via TCP, spawn a process manually and use |bp.rpc.connect()|
 ---
----@param cmd (string) Command to start the BSP server.
+---@param cmd (string) Command to start the BP server.
 ---@param cmd_args (string[]) List of additional string arguments to pass to {cmd}.
----@param dispatchers bsp.rpc.Dispatchers? Dispatchers for BSP message types. Valid
+---@param dispatchers bp.rpc.Dispatchers Dispatchers for BP message types. Valid
 ---dispatcher names are:
 --- - `"notification"`
 --- - `"server_request"`
 --- - `"on_error"`
 --- - `"on_exit"`
----@param extra_spawn_params bsp.rpc.ExtraSpawnParams? Additional context for the BSP
+---@param extra_spawn_params bp.rpc.ExtraSpawnParams? Additional context for the BP
 --- server process. May contain:
---- - {cwd} (string) Working directory for the BSP server process
---- - {detached} (boolean?) Detach the BSP server process from the current process. Defaults to false on Windows and true otherwise.
---- - {env} (table?) Additional environment variables for BSP server process
----@return bsp.rpc.PublicRpcClient? #Client RPC object, with these methods:
---- - `notify()` |bsp.rpc.notify()|
---- - `request()` |bsp.rpc.request()|
+--- - {cwd} (string) Working directory for the BP server process
+--- - {detached} (boolean?) Detach the BP server process from the current process. Defaults to false on Windows and true otherwise.
+--- - {env} (table?) Additional environment variables for BP server process
+---@param logger Logger Logger to be used for logs.
+---@return bp.rpc.PublicRpcClient? #Client RPC object, with these methods:
+--- - `notify()` |bp.rpc.notify()|
+--- - `request()` |bp.rpc.request()|
 --- - `is_closing()` returns a boolean indicating if the RPC is closing.
 --- - `terminate()` terminates the RPC client.
-function M.start(cmd, cmd_args, dispatchers, extra_spawn_params)
-  if log.info() then
-    log.info('Starting RPC client', { cmd = cmd, args = cmd_args, extra = extra_spawn_params })
-  end
-
+function M.start(cmd, cmd_args, dispatchers, extra_spawn_params, logger)
   validate({
     cmd = { cmd, 's' },
     cmd_args = { cmd_args, 't' },
     dispatchers = { dispatchers, 't', true },
+    logger = { logger, 't' },
   })
+
+  if logger.info() then
+    logger.info('Starting RPC client', { cmd = cmd, args = cmd_args, extra = extra_spawn_params })
+  end
 
   extra_spawn_params = extra_spawn_params or {}
 
@@ -775,21 +707,22 @@ function M.start(cmd, cmd_args, dispatchers, extra_spawn_params)
     assert(is_dir(extra_spawn_params.cwd), 'cwd must be a directory')
   end
 
-  dispatchers = merge_dispatchers(dispatchers)
-
   local sysobj ---@type vim.SystemObj
 
-  local client = new_client(dispatchers, {
-    write = function(msg)
-      sysobj:write(msg)
-    end,
-    is_closing = function()
-      return sysobj == nil or sysobj:is_closing()
-    end,
-    terminate = function()
-      sysobj:kill(15)
-    end,
-  })
+  local client = new_client(
+    dispatchers,
+    {
+      write = function(msg)
+        sysobj:write(msg)
+      end,
+      is_closing = function()
+        return sysobj == nil or sysobj:is_closing()
+      end,
+      terminate = function()
+        sysobj:kill(15)
+      end,
+    },
+    logger)
 
   local handle_body = function(body)
     client:handle_body(body)
@@ -800,8 +733,8 @@ function M.start(cmd, cmd_args, dispatchers, extra_spawn_params)
   end)
 
   local stderr_handler = function(_, chunk)
-    if chunk and log.error() then
-      log.error('rpc', cmd, 'stderr', chunk)
+    if chunk and logger.error() then
+      logger.error('rpc', cmd, 'stderr', chunk)
     end
   end
 

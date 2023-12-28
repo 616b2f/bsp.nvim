@@ -1,5 +1,3 @@
--- Logger for language client plugin.
-
 local log = {}
 
 --- Log level dictionary with reverse lookup as well.
@@ -8,13 +6,74 @@ local log = {}
 --- Levels by name: "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "OFF"
 --- Level numbers begin with "TRACE" at 0
 --- @nodoc
-log.levels = vim.deepcopy(vim.log.levels)
+local levels = vim.deepcopy(vim.log.levels)
+
+-- This is put here on purpose after the loop above so that it doesn't
+-- interfere with iterating the levels
+vim.tbl_add_reverse_lookup(levels)
 
 -- Default log level is warn.
-local current_log_level = log.levels.WARN
+local current_log_level = levels.WARN
+
 local log_date_format = '%F %H:%M:%S'
+
 local format_func = function(arg)
   return vim.inspect(arg, { newline = '' })
+end
+
+-- Create a logger for base protocol based client.
+---@param category string Category to which the logs belong.
+---@return Logger
+function log.new_logger(category)
+  ---@class Logger
+  ---@field trace fun(...: string|table|nil)
+  ---@field debug fun(...: string|table|nil)
+  ---@field info fun(...: string|table|nil)
+  ---@field warn fun(...: string|table|nil)
+  ---@field error fun(...: string|table|nil)
+  ---@field category string Category to which the log messages should go
+  local logger = {
+    category = category
+  }
+
+  for level, levelnr in pairs(levels) do
+    -- Set the lowercase name as the main use function.
+    -- If called without arguments, it will check whether the log level is
+    -- greater than or equal to this one. When called with arguments, it will
+    -- log at that level (if applicable, it is checked either way).
+    --
+    -- Recommended usage:
+    -- ```
+    -- local _ = logger.warn() and logger.warn("123")
+    -- ```
+    --
+    -- This way you can avoid string allocations if the log level isn't high enough.
+    if type(level) == 'string' and level ~= 'OFF' then
+      logger[level:lower()] = function(...)
+        local argc = select('#', ...)
+        if levelnr < current_log_level then
+          return false
+        end
+        if argc == 0 then
+          return true
+        end
+        local info = debug.getinfo(2, 'Sl')
+        local parts = {}
+        for i = 1, argc do
+          local arg = select(i, ...)
+          if arg == nil then
+            table.insert(parts, 'nil')
+          else
+            table.insert(parts, format_func(arg))
+          end
+        end
+        local message = table.concat(parts, '\t')
+        log._write_log(category, level, os.time(), info, message)
+      end
+    end
+  end
+
+  return logger
 end
 
 do
@@ -72,78 +131,42 @@ do
       )
       notify(warn_msg)
     end
-
-    -- Start message for logging
-    logfile:write(string.format('[START][%s] BSP logging initiated\n', os.date(log_date_format)))
     return true
   end
 
-  for level, levelnr in pairs(log.levels) do
-    -- Also export the log level on the root object.
-    log[level] = levelnr
-    -- FIXME: DOC
-    -- Should be exposed in the vim docs.
-    --
-    -- Set the lowercase name as the main use function.
-    -- If called without arguments, it will check whether the log level is
-    -- greater than or equal to this one. When called with arguments, it will
-    -- log at that level (if applicable, it is checked either way).
-    --
-    -- Recommended usage:
-    -- ```
-    -- local _ = log.warn() and log.warn("123")
-    -- ```
-    --
-    -- This way you can avoid string allocations if the log level isn't high enough.
-    if level ~= 'OFF' then
-      log[level:lower()] = function(...)
-        local argc = select('#', ...)
-        if levelnr < current_log_level then
-          return false
-        end
-        if argc == 0 then
-          return true
-        end
-        if not open_logfile() then
-          return false
-        end
-        local info = debug.getinfo(2, 'Sl')
-        local header = string.format(
-          '[%s][%s] ...%s:%s',
-          level,
-          os.date(log_date_format),
-          string.sub(info.short_src, #info.short_src - 15),
-          info.currentline
-        )
-        local parts = { header }
-        for i = 1, argc do
-          local arg = select(i, ...)
-          if arg == nil then
-            table.insert(parts, 'nil')
-          else
-            table.insert(parts, format_func(arg))
-          end
-        end
-        logfile:write(table.concat(parts, '\t'), '\n')
-        logfile:flush()
-      end
+  ---@private format and log to the default sink
+  ---@param category string
+  ---@param level string
+  ---@param timestamp integer
+  ---@param info debuginfo
+  ---@param message string
+  function log._write_log(category, level, timestamp, info, message)
+    if not open_logfile() then
+      return false
     end
+    local formatted_message = string.format(
+      '[%s][%s][%s] ...%s:%s\t%s',
+      category,
+      level,
+      os.date(log_date_format, timestamp),
+      string.sub(info.short_src, #info.short_src - 15),
+      info.currentline,
+      message
+    )
+    logfile:write(formatted_message, '\n')
+    logfile:flush()
   end
 end
 
--- This is put here on purpose after the loop above so that it doesn't
--- interfere with iterating the levels
-vim.tbl_add_reverse_lookup(log.levels)
-
 --- Sets the current log level.
----@param level (string|integer) One of `bsp.log.levels`
+---@param level (string|integer) One of `bp.log.levels`
 function log.set_level(level)
   if type(level) == 'string' then
     current_log_level =
-      assert(log.levels[level:upper()], string.format('Invalid log level: %q', level))
+      assert(levels[level:upper()], string.format('Invalid log level: %q', level))
   else
     assert(type(level) == 'number', 'level must be a number or string')
-    assert(log.levels[level], string.format('Invalid log level: %d', level))
+    assert(levels[level], string.format('Invalid log level: %d', level))
     current_log_level = level
   end
 end

@@ -51,18 +51,13 @@ error('Cannot require a meta file')
 
 ---@alias bsp.InitializeBuildResultData any
 
----@alias bsp-handler fun(err: bsp.ResponseError|nil, result: any, context: bsp.HandlerContext, config: table|nil): any?
+---@alias bsp-handler fun(err: bp.ResponseError|nil, result: any, context: bsp.HandlerContext, config: table|nil): any?
 
 ---@class bsp.HandlerContext
 ---@field method string
 ---@field client_id integer
 ---@field bufnr? integer
 ---@field params? any
-
----@class bsp.ResponseError
----@field code integer
----@field message string
----@field data string|number|boolean|table[]|table|nil
 
 ---@class bsp.TaskStartParams {
 ---Unique id of the task with optional reference to parent task id
@@ -529,7 +524,7 @@ error('Cannot require a meta file')
 
 ---@class bsp.LogMessageParams
 ---the message type.
----@field type bsp.MessageType
+---@field type bp.MessageType
 ---The task id if any.
 ---@field task? bsp.TaskId
 ---The request id that originated this notification.
@@ -541,7 +536,7 @@ error('Cannot require a meta file')
 
 ---@class bsp.ShowMessageParams {
 ---the message type.
----@field type bsp.MessageType
+---@field type bp.MessageType
 ---The task id if any.
 ---@field task? bsp.TaskId
 ---The request id that originated this notification.
@@ -550,12 +545,6 @@ error('Cannot require a meta file')
 ---@field originId? bsp.OriginId
 ---The actual message.
 ---@field message string
-
----The diagnostic's severity.
----@alias bsp.StatusCode
----| 1 # Ok
----| 2 # Error
----| 3 # Canceled
 
 ---@class bsp.BuildTargetCapabilities
 ---This target can be compiled by the BSP server.

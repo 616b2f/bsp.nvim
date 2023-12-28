@@ -92,7 +92,11 @@ local constants = {
     Skipped = 5,
   },
 
+  ---The diagnostic's severity.
   ---@enum bsp.StatusCode
+  ---| 1 # Ok
+  ---| 2 # Error
+  ---| 3 # Canceled
   StatusCode = {
     Ok = 1,
     Error = 2,
@@ -104,36 +108,6 @@ local constants = {
     Created = 1,
     Changed = 2,
     Deleted = 3
-  },
-
-  ---@enum bsp.MessageType
-  MessageType = {
-    ---An error message.
-    Error = 1,
-    ---A warning message.
-    Warning = 2,
-    ---An information message.
-    Info = 3,
-    ---A log message.
-    Log = 4,
-  },
-
-  ErrorCodes = {
-    -- Defined by JSON RPC
-    ParseError = -32700,
-    InvalidRequest = -32600,
-    MethodNotFound = -32601,
-    InvalidParams = -32602,
-    InternalError = -32603,
-    serverErrorStart = -32099,
-    serverErrorEnd = -32000,
-    ServerNotInitialized = -32002,
-    UnknownErrorCode = -32001,
-    -- Defined by the protocol.
-    RequestCancelled = -32800,
-    ContentModified = -32801,
-    ServerCancelled = -32802,
-    RequestFailed = -32803
   },
 
   ---@enum bsp.SourceItemKind

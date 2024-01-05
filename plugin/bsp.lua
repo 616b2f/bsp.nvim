@@ -36,7 +36,7 @@ local bsp_get_active_client_ids = function(arg)
   return items
 end
 
-cmd('BspClientRestart', function(info)
+cmd('BspRestart', function(info)
   local detach_clients = {}
   for _, client in ipairs(get_clients_from_cmd_args(info.args)) do
     client.stop()

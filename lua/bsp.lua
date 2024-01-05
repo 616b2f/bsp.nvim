@@ -231,21 +231,30 @@ end
 function bsp.findConnectionDetails ()
   local configs = {}
 
-  local files = vim.fs.find(function(name, path)
-    -- TODO: traverse parent dir's to find workspace
-    -- it should contain the .bsp folder
-    -- <workspace-dir>/.bsp/
-    -- USER: $XDG_DATA_HOME/bsp/
-    -- SYSTEM: $XDG_DATA_DIRS/bsp/
-    return name:match('.*%.json$') and path:match('[/\\\\].bsp$')
-  end, {limit = math.huge, type = 'file'})
-  -- TODO: search for user wide config if proj specific is not found
+  -- TODO: search all places for connection config
+  -- <workspace-dir>/.bsp/
+  -- USER: $XDG_DATA_HOME/bsp/
+  -- SYSTEM: $XDG_DATA_DIRS/bsp/
+  local workspace_bsp_dir = vim.fs.find('.bsp', {
+      upward = true,
+      type = 'directory'
+  })
 
-  for _, file in pairs(files) do
-    if file then
-      local json = vim.fn.join(vim.fn.readfile(file), '\n')
-      local config = vim.json.decode(json)
-      configs[file] = config
+  if next(workspace_bsp_dir) then
+    local files = vim.fs.find(function(name)
+      return name:match('.*%.json$')
+    end, {
+        limit = math.huge,
+        type = 'file',
+        path = workspace_bsp_dir[1]
+    })
+
+    for _, file in pairs(files) do
+      if file then
+        local json = vim.fn.join(vim.fn.readfile(file), '\n')
+        local config = vim.json.decode(json)
+        configs[file] = config
+      end
     end
   end
   return configs
@@ -722,7 +731,7 @@ function bsp.start_client(config)
           signal,
           bsp.get_log_path()
         )
-        vim.notify(msg, log.levels.WARN)
+        vim.notify(msg, vim.log.levels.WARN)
       end
     end)
   end

@@ -1089,9 +1089,9 @@ function bsp.start_client(config)
       return
     end
     -- Sending a signal after a process has exited is acceptable.
-    rpc.request(ms.shutdown, nil, function(err, _)
+    rpc.request(ms.build_shutdown, nil, function(err, _)
       if err == nil then
-        rpc.notify(ms.exit)
+        rpc.notify(ms.build_exit)
       else
         -- If there was an error in the shutdown request, then term to be safe.
         rpc.terminate()

@@ -27,9 +27,13 @@ local bsp_get_active_client_ids = function(arg)
     return ('%d (%s)'):format(client.id, client.name)
   end, bsp.get_clients())
 
-  return completion_sort(vim.tbl_filter(function(s)
-    return s:sub(1, #arg) == arg
-  end, clients))
+  local items = vim.tbl_filter(
+    function(s)
+      return s:sub(1, #arg) == arg
+    end,
+    clients)
+  table.sort(items)
+  return items
 end
 
 cmd('BspClientRestart', function(info)
@@ -45,6 +49,7 @@ cmd('BspClientRestart', function(info)
     vim.schedule_wrap(function()
       for client_name, client in pairs(detach_clients) do
         if client.is_stopped() then
+          require('bsp').start_client(client.config)
           detach_clients[client_name] = nil
         end
       end

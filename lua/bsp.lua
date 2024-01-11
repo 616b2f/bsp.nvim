@@ -294,38 +294,36 @@ function bsp.compile_build_target()
     end
   end
 
-  vim.ui.select(client_targets, {
-    prompt = "select target to compile",
-    ---@type fun(item: { client: bsp.Client, target: bsp.BuildTarget }) : string
-    format_item = function (item)
-      return item.target.displayName
-          .. " "
-          .. vim.inspect(item.target.tags)
-          .. " : " .. item.client.name
-    end,
-    kind = "bsp.BuildTarget"
-  },
-  ---@param clientTarget { client: bsp.Client, target: bsp.BuildTarget }
-  function (clientTarget)
-    if clientTarget then
-        ---@type bsp.CompileParams
-        local compileParams = {
-          targets = { clientTarget.target.id }
-        }
-        clientTarget.client.request(
-          ms.buildTarget_compile,
-          compileParams,
-          ---comment
-          ---@param err bp.ResponseError|nil
-          ---@param result bsp.CompileResult
-          ---@param context bsp.HandlerContext
-          ---@param config table|nil
-          function (err, result, context, config)
-            vim.notify("BSP-Compilation status: " .. bsp.protocol.StatusCode[result.statusCode])
-          end,
-        0)
-    end
-  end)
+  vim.ui.select(
+    client_targets,
+    {
+      prompt = "select target to compile",
+      ---@type fun(item: { client: bsp.Client, target: bsp.BuildTarget }) : string
+      format_item = function (item)
+        return item.target.displayName
+            .. " "
+            .. vim.inspect(item.target.tags)
+            .. " : " .. item.client.name
+      end,
+      kind = "bsp.BuildTarget"
+    },
+    ---@param clientTarget { client: bsp.Client, target: bsp.BuildTarget }
+    function (clientTarget)
+      if clientTarget then
+          ---@type bsp.CompileParams
+          local compileParams = {
+            targets = { clientTarget.target.id }
+          }
+          clientTarget.client.request(
+            ms.buildTarget_compile,
+            compileParams,
+            ---@param result bsp.CompileResult
+            function (err, result, context, config)
+              vim.notify("BSP-Compilation status: " .. bsp.protocol.StatusCode[result.statusCode])
+            end,
+          0)
+      end
+    end)
 end
 function bsp.test_build_target()
   ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
@@ -1115,10 +1113,7 @@ function bsp.start_client(config)
   function client.load_project_data()
     --TODO: handle error case properly
     local request_success, request_id = client.request(ms.workspace_buildTargets, nil,
-      ---@param err bp.ResponseError|nil
       ---@param result bsp.WorkspaceBuildTargetsResult
-      ---@param context bsp.HandlerContext
-      ---@param config table|nil
       function (err, result, context, config)
         if result then
           local build_target_identifier = {}
@@ -1132,10 +1127,7 @@ function bsp.start_client(config)
               targets = build_target_identifier
           }
           local request_success, request_id = client.request(ms.buildTarget_sources, sources_params,
-            ---@param err bp.ResponseError|nil
             ---@param result bsp.SourcesResult
-            ---@param context bsp.HandlerContext
-            ---@param config table|nil
             function (err, result, context, config)
               if result then
                 client.sources = result.items
@@ -1143,16 +1135,13 @@ function bsp.start_client(config)
             end,
             0)
 
-          ---@type bsp.ResourcesParams
-          local resources_params = {
-              targets = build_target_identifier
-          }
           if client.server_capabilities.resourcesProvider then
+            ---@type bsp.ResourcesParams
+            local resources_params = {
+                targets = build_target_identifier
+            }
             local request_success, request_id = client.request(ms.buildTarget_resources, resources_params,
-              ---@param err bp.ResponseError|nil
               ---@param result bsp.ResourcesResult
-              ---@param context bsp.HandlerContext
-              ---@param config table|nil
               function (err, result, context, config)
                 if result then
                   client.resources = result.items
@@ -1161,34 +1150,30 @@ function bsp.start_client(config)
               0)
           end
 
-          ---@type bsp.DependencySourcesParams
-          local dependency_sources_params = {
-              targets = build_target_identifier
-          }
           if client.server_capabilities.dependencySourcesProvider then
-            local request_success, request_id = client.request(ms.buildTarget_dependencySources, dependency_sources_params,
-              ---@param err bp.ResponseError|nil
-              ---@param result bsp.DependencySourcesResult
-              ---@param context bsp.HandlerContext
-              ---@param config table|nil
-              function (err, result, context, config)
-                if result then
-                  client.dependency_sources = result.items
-                end
-              end,
-              0)
+            ---@type bsp.DependencySourcesParams
+            local dependency_sources_params = {
+                targets = build_target_identifier
+            }
+            if client.server_capabilities.dependencySourcesProvider then
+              local request_success, request_id = client.request(ms.buildTarget_dependencySources, dependency_sources_params,
+                ---@param result bsp.DependencySourcesResult
+                function (err, result, context, config)
+                  if result then
+                    client.dependency_sources = result.items
+                  end
+                end,
+                0)
+            end
           end
 
-          ---@type bsp.OutputPathsParams
-          local output_paths_params = {
-              targets = build_target_identifier
-          }
           if client.server_capabilities.outputPathsProvider then
+            ---@type bsp.OutputPathsParams
+            local output_paths_params = {
+                targets = build_target_identifier
+            }
             local request_success, request_id = client.request(ms.buildTarget_outputPaths, output_paths_params,
-              ---@param err bp.ResponseError|nil
               ---@param result bsp.OutputPathsResult
-              ---@param context bsp.HandlerContext
-              ---@param config table|nil
               function (err, result, context, config)
                 if result then
                   client.output_paths = result.items

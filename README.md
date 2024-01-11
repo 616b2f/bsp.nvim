@@ -33,6 +33,19 @@ Plug '616b2f/bsp.nvim'
 require("bsp").setup()
 ```
 
+# Available commands
+
+```
+BspCleanCache
+BspCompile
+BspConsole
+BspInfo
+BspLog
+BspRestart
+BspRun
+BspTest
+```
+
 # Credits
 Thanks to the following projects that helped me to build this project.
 

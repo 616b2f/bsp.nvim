@@ -65,12 +65,34 @@ end, {
   complete = bsp_get_active_client_ids,
 })
 
-cmd('BspPrintWorkspaceTargets', function()
+cmd('BspInfo', function()
   local bsp = require('bsp')
 
+  local lines = {}
+  table.insert(lines, "Log file: " .. bsp.get_log_path())
+  table.insert(lines, "")
   local clients = bsp.get_clients()
   for _, client in ipairs(clients) do
-    print("client: " .. client.name .. " build_tagets: " .. vim.inspect(client.build_targets))
+    table.insert(lines, "Client ID: " .. tostring(client.id))
+    table.insert(lines, "Server Name: " .. client.name)
+    table.insert(lines, "Build Tagets: ")
+    for _, btarget in pairs(client.build_targets) do
+      table.insert(lines, "\t" .. btarget.id.uri)
+    end
   end
+
+  local buf = vim.api.nvim_create_buf(false, true)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, true, lines)
+  local opts = {
+    relative = "editor",
+    width = 40, height = 20,
+    col = 0, row = 1,
+    anchor = "NW",
+    border = "single",
+    style = "minimal"
+  }
+  local win = vim.api.nvim_open_win(buf, true, opts)
+  -- optional: change highlight, otherwise Pmenu is used
+  vim.api.nvim_set_option_value('winhl', 'Normal:MyHighlight', {win=win})
 end, { nargs = 0 })
 

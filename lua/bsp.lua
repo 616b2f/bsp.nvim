@@ -912,6 +912,7 @@ function bsp.start_client(config)
 
       -- Only assign after initialized.
       active_clients[client_id] = client
+      client._on_attach()
     end)
   end
 

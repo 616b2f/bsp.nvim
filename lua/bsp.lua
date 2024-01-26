@@ -840,7 +840,7 @@ function bsp.start_client(config)
       -- Information about the client
       displayName = 'Neovim',
       version = tostring(vim.version()),
-      bspVersion = '2.1.0',
+      bspVersion = '2.1.1',
       -- The rootUri of the workspace. Is null if no folder is open.
       rootUri = root_uri or vim.NIL,
       -- The workspace folders configured in the client when the server starts.

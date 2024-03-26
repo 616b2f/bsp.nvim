@@ -260,6 +260,19 @@ function bsp.findConnectionDetails ()
   return configs
 end
 
+--- Writes BSP Connection Details configuration into a file
+---@param connection_details bsp.BspConnectionDetails
+---@param file_path string
+function bsp.writeConnectionDetails(connection_details, file_path)
+  local ok, json = pcall(vim.fn.json_encode, connection_details)
+  if not ok then
+    vim.notify("Could not convert connection_details to json", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.fn.writefile({json}, file_path)
+end
+
 function bsp.setup()
   local connection_details_dict = bsp.findConnectionDetails();
   if not connection_details_dict then return end

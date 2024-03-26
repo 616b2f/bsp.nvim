@@ -33,12 +33,25 @@ Plug '616b2f/bsp.nvim'
 require("bsp").setup()
 ```
 
+## Setup BSP Server
+you can use my fork of mason-registry to install bsp-servers (if there is enough interest I will create PRs for them upsream). Add the fork as additional registry, this will first look in the official repository and after that in my fork:
+```lua
+require("mason").setup({
+  registries = {
+    "github:mason-org/mason-registry",
+    "github:616b2f/mason-registry",
+  }
+})
+```
+After that go to the root of your project and run `BspCreateConfig <bsp_server_name>` you can use TAB to select between available server configurations. A config file `.bsp/<bsp_server_name.json` will be created for you. The server has to be installed for it to work.
+
 # Available commands
 
 ```
 BspCleanCache
 BspCompile
 BspConsole
+BspCreateConfig <bsp_server_name>
 BspInfo
 BspLog
 BspRestart

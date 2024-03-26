@@ -96,3 +96,15 @@ cmd('BspInfo', function()
   vim.api.nvim_set_option_value('winhl', 'Normal:MyHighlight', {win=win})
 end, { nargs = 0 })
 
+
+cmd('BspCreateConfig', function(info)
+  local working_dir = vim.uv.cwd()
+  require("bsp-config").create_config(info.args, working_dir);
+end, {
+  desc = 'Create new configuration for specified BSP server in current directory',
+  nargs = '?',
+  complete = function ()
+    return { "dotnet-bsp", "cargo-bsp", "gradle-bsp" }
+  end
+})
+

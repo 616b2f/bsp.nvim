@@ -97,14 +97,25 @@ cmd('BspInfo', function()
 end, { nargs = 0 })
 
 
-cmd('BspCreateConfig', function(info)
-  local working_dir = vim.uv.cwd()
-  require("bsp-config").create_config(info.args, working_dir);
-end, {
-  desc = 'Create new configuration for specified BSP server in current directory',
-  nargs = '?',
-  complete = function ()
-    return { "dotnet-bsp", "cargo-bsp", "gradle-bsp" }
-  end
-})
+cmd('BspCreateConfig',
+  ---@param info { name: string, args: string }
+  function(info)
+    local working_dir = vim.uv.cwd()
+    assert(working_dir, 'could not get current working directory')
+
+    if info and not info.args or info.args == '' then
+      print('Specify server name: ' .. info.name .. ' <server_name>')
+      return
+    end
+
+    require("bsp-config").create_config(info.args, working_dir);
+  end,
+  {
+    desc = 'Create new configuration for specified BSP server in current directory',
+    nargs = '?',
+    complete = function ()
+      return { "dotnet-bsp", "cargo-bsp", "gradle-bsp" }
+    end
+  }
+)
 

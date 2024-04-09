@@ -271,6 +271,7 @@ function bsp.writeConnectionDetails(connection_details, file_path)
   end
 
   vim.fn.writefile({json}, file_path)
+  vim.notify("ConnectionDetails where written to: " .. file_path, vim.log.levels.INFO)
 end
 
 function bsp.setup()

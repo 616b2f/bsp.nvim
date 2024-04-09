@@ -314,7 +314,7 @@ function bsp.compile_build_target()
       prompt = "select target to compile",
       ---@type fun(item: { client: bsp.Client, target: bsp.BuildTarget }) : string
       format_item = function (item)
-        return item.target.displayName
+        return (item.target.displayName or item.target.id.uri)
             .. " "
             .. vim.inspect(item.target.tags)
             .. " : " .. item.client.name

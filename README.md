@@ -54,11 +54,11 @@ After that go to the root of your project and run `BspCreateConfig <bsp_server_n
 
 # Available commands
 
-```
+```sh
 BspCleanCache
 BspCompile
 BspConsole
-BspCreateConfig <bsp_server_name>
+BspCreateConfig <bsp_server_name> # requires "mason-registry" package to be installed
 BspInfo
 BspLog
 BspRestart

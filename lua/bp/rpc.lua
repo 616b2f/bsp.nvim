@@ -759,10 +759,10 @@ function M.start(cmd, cmd_args, dispatchers, extra_spawn_params, logger)
 
   if not ok then
     local err = sysobj_or_err --[[@as string]]
-    local msg = string.format('Spawning language server with cmd: `%s` failed', cmd)
+    local msg = string.format('Spawning server with cmd: `%s` failed', cmd)
     if string.match(err, 'ENOENT') then
       msg = msg
-        .. '. The language server is either not installed, missing from PATH, or not executable.'
+        .. '. The server is either not installed, missing from PATH, or not executable.'
     else
       msg = msg .. string.format(' with error message: %s', err)
     end

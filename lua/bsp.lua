@@ -332,8 +332,12 @@ function bsp.compile_build_target()
             ms.buildTarget_compile,
             compileParams,
             ---@param result bsp.CompileResult
-            function (err, result, context, config)
-              vim.notify("BSP-Compilation status: " .. bsp.protocol.StatusCode[result.statusCode])
+            function (err, result)
+              if result then
+                vim.notify("BSP-Compilation status: " .. bsp.protocol.StatusCode[result.statusCode], vim.log.levels.INFO)
+              elseif err then
+                vim.notify("BSP-Compilation failed: " .. err.message, vim.log.levels.ERROR)
+              end
             end,
           0)
       end

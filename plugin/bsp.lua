@@ -13,7 +13,9 @@ local get_clients_from_cmd_args = function(arg)
   local bsp = require('bsp')
   local result = {}
   for id in (arg or ''):gmatch '(%d+)' do
-    result[id] = bsp.get_client_by_id(tonumber(id))
+    local client_id = tonumber(id)
+    assert(client_id, 'client_id is not a number')
+    result[client_id] = bsp.get_client_by_id(client_id)
   end
   if vim.tbl_isempty(result) then
     return require('bsp').get_clients()

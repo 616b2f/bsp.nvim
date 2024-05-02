@@ -3,6 +3,9 @@ local console = require('bsp.bsp-console')
 local ms = protocol.Methods
 local api = vim.api
 
+
+local ns = vim.api.nvim_create_namespace("bsp")
+
 local M = {}
 
 --- Writes to error buffer.
@@ -46,9 +49,10 @@ local errlist_type_map = {
 --- passed to |setqflist()| or |setloclist()|.
 ---
 ---@param filename string Filename that is the scope of the diagnostics
----@param diagnostics lsp.Diagnostic[] List of diagnostics |bsp-diagnostic|.
+---@param diagnostics lsp.Diagnostic[] List of diagnostics.
+---@param encoding any
 ---@return table[] of quickfix list items |setqflist-what|
-local function toqflist(filename, diagnostics)
+local function diagnostic_lsp_to_toqflist(filename, diagnostics, encoding)
   vim.validate({
     diagnostics = {
       diagnostics,
@@ -57,19 +61,48 @@ local function toqflist(filename, diagnostics)
     },
   })
 
-  local list = {}
-  for _, v in ipairs(diagnostics) do
-    local item = {
-      filename = filename,
-      lnum = v.range.start.line + 1,
-      col = v.range.start.character and (v.range.start.character + 1) or nil,
-      end_lnum = v.range["end"].line and (v.range["end"].character + 1) or nil,
-      end_col = v.range["end"].character and (v.range["end"].character + 1) or nil,
-      text = v.message,
-      type = v.severity and errlist_type_map[v.severity] or 'E',
-    }
-    table.insert(list, item)
+  ---@param lnum integer
+  ---@param col integer
+  ---@param offset_encoding string
+  ---@return integer
+  local function line_byte_from_position(lnum, col, offset_encoding)
+    if offset_encoding == 'utf-8' then
+      return col
+    end
+
+    local ok, result = pcall(vim.str_byteindex, lnum, col, offset_encoding == 'utf-16')
+    if ok then
+      return result --- @type integer
+    end
+
+    return col
   end
+
+  local offset_encoding = encoding or 'utf-16'
+
+  --- @param diagnostic lsp.Diagnostic
+  local list = vim.tbl_map(function(diagnostic)
+    local start = diagnostic.range.start
+    local start_line = start.line + 1
+    local start_character = start.character and start.character + 1 or nil
+    local _end = diagnostic.range['end']
+    local _end_line = _end.line and _end.line + 1 or nil
+    local _end_character = _end.character and _end.character + 1 or nil
+    return {
+      lnum = start_line,
+      col = line_byte_from_position(start_line, start_character, offset_encoding),
+      end_lnum = _end_line,
+      end_col = line_byte_from_position(_end_line, _end_character, offset_encoding),
+      type = diagnostic.severity and errlist_type_map[diagnostic.severity] or 'E',
+      text = diagnostic.message,
+      source = diagnostic.source,
+      filename = filename,
+      code = diagnostic.code,
+      vcol = 1,
+      namespace = ns,
+    }
+  end, diagnostics)
+
   table.sort(list, function(a, b)
     if a.bufnr == b.bufnr then
       if a.lnum == b.lnum then
@@ -109,7 +142,7 @@ M[ms.run_printStdout] = function(_, result, ctx)
     return vim.NIL
   end
 
-  write_to_console(client.name, ctx.client_id, result.task.id, vim.inspect(result))
+  write_to_console(client.name, ctx.client_id, vim.inspect(result))
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onrunprintstderr-notification
@@ -151,11 +184,11 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
     return vim.NIL
   end
 
-  local diagnostics = toqflist(result.textDocument.uri, result.diagnostics)
   vim.schedule(function ()
     if result.reset then
       vim.fn.setqflist({}, 'r')
     else
+      local diagnostics = diagnostic_lsp_to_toqflist(result.textDocument.uri, result.diagnostics, client.offset_encoding)
       vim.fn.setqflist({}, 'a', {
         title = "bsp-diagnostics",
         items = diagnostics

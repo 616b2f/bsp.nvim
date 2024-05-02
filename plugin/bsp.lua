@@ -110,7 +110,7 @@ cmd('BspCreateConfig',
       return
     end
 
-    require("bsp-config").create_config(info.args, working_dir);
+    require("bsp-config").create_config(info.args, working_dir)
   end,
   {
     desc = 'Create new configuration for specified BSP server in current directory',

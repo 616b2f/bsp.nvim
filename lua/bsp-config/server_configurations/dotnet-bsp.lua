@@ -1,13 +1,23 @@
 return {
   on_create_config = function (server_install_dir, workspace_dir)
-      local cmd = server_install_dir .. "/install.sh " .. workspace_dir
-      local handle = io.popen(cmd)
-      if handle then
-        local output = handle:read('*a')
-        if output then
-          print("bsp-config install dotnet-bsp config: " .. output)
-        end
-        handle:close()
-      end
-    end
+
+      local connection_details = {
+        name = 'dotnet-bsp',
+        languages = { 'csharp' },
+        version = '0.0.1',
+        bspVersion = '2.1.1',
+        argv = {
+          'dotnet',
+          'exec',
+          server_install_dir .. '/bin/dotnet-bsp.dll',
+          '--logLevel=Debug',
+          '--extensionLogDirectory',
+          '.'
+        }
+      }
+
+      local bsp_dir_path = workspace_dir .. "/.bsp"
+      vim.fn.mkdir(bsp_dir_path, "p")
+      require("bsp").writeConnectionDetails(connection_details, bsp_dir_path .. "/dotnet-bsp.json")
+  end
 }

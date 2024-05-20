@@ -5,6 +5,8 @@ This is currently in active development and is not stable. You are welcome to co
 
 # Installation
 
+min supported neovim version is 0.10
+
 ## [Packer](https://github.com/wbthomason/packer.nvim)
 
 ```lua

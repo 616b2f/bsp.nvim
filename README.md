@@ -91,80 +91,78 @@ local bsp = require("bsp")
 local progress = require("fidget.progress")
 local handles = {}
 vim.api.nvim_create_autocmd("User",
-{
+  {
     group = 'bsp',
     pattern = 'BspProgress:start',
     callback = function(ev)
-    local data = ev.data
-    local client = bsp.get_client_by_id(data.client_id)
-    if client then
+      local data = ev.data
+      local client = bsp.get_client_by_id(data.client_id)
+      if client then
         ---@type bsp.TaskStartParams
         local result = ev.data.result
         local title = "BSP-Task"
         if result.dataKind then
-        title = result.dataKind
+          title = result.dataKind
         end
         local message = "started: " .. tostring(result.taskId.id)
 
-        handles[result.taskId.id] = progress.handle.create({
-        token = result.taskId.id,
-        title = title,
-        message = (result.message or message),
-        lsp_client = { name = client.name }
+        local tokenId = data.client_id .. ":" .. result.taskId.id
+        handles[tokenId] = progress.handle.create({
+          token = tokenId,
+          title = title,
+          message = (result.message or message),
+          lsp_client = { name = client.name }
         })
+      end
     end
-    end
-})
+  })
 
 vim.api.nvim_create_autocmd("User",
-{
+  {
     group = 'bsp',
     pattern = 'BspProgress:progress',
     callback = function(ev)
-    local data = ev.data
-    local percentage = 0
-    ---@type bsp.TaskStartParams
-    local result = ev.data.result
-    if data.result and data.result.message then
+      local data = ev.data
+      local percentage = nil
+      ---@type bsp.TaskProgressParams
+      local result = ev.data.result
+      if data.result and data.result.message then
         local message =
-        data.result.message
-        and (data.result.originId and ( data.result.originId .. ': ') .. data.result.message)
-        or data.result.title
+          (data.result.originId and ( data.result.originId .. ': ') .. data.result.message)
+          or data.result.message
         if data.result.total and data.result.progress then
-        percentage = math.max(percentage or 0, (data.result.progress / data.result.total * 100))
+          percentage = math.max(percentage or 0, (data.result.progress / data.result.total * 100))
         end
-        local handle = handles[result.taskId.id]
+
+        local tokenId = data.client_id .. ":" .. result.taskId.id
+        local handle = handles[tokenId]
         if handle then
             local progressMessage = {
-            token = result.taskId.id,
-            message = message,
-            percentage = percentage
+              token = tokenId,
+              message = message,
+              percentage = percentage
             }
-            -- print(vim.inspect(progressMessage))
-            -- print(vim.inspect(result))
             handle:report(progressMessage)
         end
+      end
     end
-    end
-})
+  })
 
 vim.api.nvim_create_autocmd("User",
-{
+  {
     group = 'bsp',
     pattern = 'BspProgress:finish',
     callback = function(ev)
-    local data = ev.data
-    ---@type bsp.TaskStartParams
-    local result = ev.data.result
-    local handle = handles[result.taskId.id]
-    -- You can also cancel the task (errors if not cancellable)
-    -- handle:cancel()
-    -- Or mark it as complete (updates percentage to 100 automatically)
-    if handle then
+      local data = ev.data
+      ---@type bsp.TaskFinishParams
+      local result = ev.data.result
+      local tokenId = data.client_id .. ":" .. result.taskId.id
+      local handle = handles[tokenId]
+      if handle then
         handle:finish()
+      end
     end
-    end
-})
+  })
 ```
 
 

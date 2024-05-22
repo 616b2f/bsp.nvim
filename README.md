@@ -100,17 +100,14 @@ vim.api.nvim_create_autocmd("User",
       if client then
         ---@type bsp.TaskStartParams
         local result = ev.data.result
-        local title = "BSP-Task"
-        if result.dataKind then
-          title = result.dataKind
-        end
-        local message = "started: " .. tostring(result.taskId.id)
+        local title = result.dataKind or "BSP-Task"
+        local fallback_message = "started: " .. tostring(result.taskId.id)
 
         local tokenId = data.client_id .. ":" .. result.taskId.id
         handles[tokenId] = progress.handle.create({
           token = tokenId,
           title = title,
-          message = (result.message or message),
+          message = result.message or fallback_message,
           lsp_client = { name = client.name }
         })
       end

@@ -205,7 +205,7 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
       if next(qflist.items) ~= nil then
         qflist.items = vim.iter(qflist.items)
           :filter(function (item)
-            if item.user_data.text_document == result.textDocument.uri and item.user_data.build_target == result.buildTarget.uri then
+            if item.user_data and item.user_data.text_document == result.textDocument.uri and item.user_data.build_target == result.buildTarget.uri then
               return false
             end
             return true

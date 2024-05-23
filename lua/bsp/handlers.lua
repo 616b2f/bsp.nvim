@@ -193,16 +193,15 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
   vim.schedule(function ()
 
     if result.reset and result.textDocument.uri == "/" and result.buildTarget.uri == "/" then
-      print(vim.inspect(result))
       vim.fn.setqflist({}, 'r', {title = "bsp-diagnostics"})
       return
     end
 
     local diagnostics = diagnostic_lsp_to_toqflist(result.textDocument.uri, result.buildTarget.uri, result.diagnostics, client.offset_encoding)
 
-    if result.reset then
-      local qflist = vim.fn.getqflist({title = "bsp-diagnostics", items = 0 })
+    local qflist = vim.fn.getqflist({title = "bsp-diagnostics", items = 0 })
 
+    if result.reset then
       if next(qflist.items) ~= nil then
         qflist.items = vim.iter(qflist.items)
           :filter(function (item)
@@ -219,13 +218,21 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
       end
       vim.fn.setqflist({}, 'r', qflist)
     else
+      for _, diag in pairs(diagnostics) do
+        table.insert(qflist.items, diag)
+      end
+      -- vim.fn.setqflist({}, 'r', qflist)
       vim.fn.setqflist({}, 'a', {
         title = "bsp-diagnostics",
         items = diagnostics
       })
     end
 
-    vim.cmd('copen')
+    if next(qflist.items) ~= nil then
+      vim.cmd('copen')
+    else
+      vim.cmd('cclose')
+    end
   end)
 end
 

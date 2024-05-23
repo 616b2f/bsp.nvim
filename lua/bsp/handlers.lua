@@ -192,8 +192,8 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
 
   vim.schedule(function ()
 
-    if result.reset and result.textDocument.uri == "/" and result.buildTarget.uri == "/" then
-      vim.fn.setqflist({}, 'r', {title = "bsp-diagnostics"})
+    if result.reset and result.textDocument.uri == "file:///" and result.buildTarget.uri == "file:///" then
+      vim.fn.setqflist({}, 'r')
       return
     end
 

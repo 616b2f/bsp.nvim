@@ -52,7 +52,8 @@ require("mason").setup({
   }
 })
 ```
-After that go to the root of your project and run `BspCreateConfig <bsp_server_name>` you can use TAB to select between available server configurations. A config file `.bsp/<bsp_server_name.json` will be created for you. The server has to be installed for it to work.
+## Create config
+After the setup you have to create a config file for your BSP Server, that is located in the root of your project. To create the config file run `BspCreateConfig <bsp_server_name>` you can use TAB to select between available server configurations. A config file `.bsp/<bsp_server_name.json` will be created for you. The server has to be installed for it to work.
 
 # Available commands
 

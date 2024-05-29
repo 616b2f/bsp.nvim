@@ -119,7 +119,7 @@ function bsp._cmd_parts(input)
     cmd = {
       input,
       function()
-        return vim.tbl_islist(input)
+        return vim.islist(input)
       end,
       'list',
     },

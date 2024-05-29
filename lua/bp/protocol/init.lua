@@ -44,7 +44,14 @@ local constants = {
 
 for k, v in pairs(constants) do
   local tbl = vim.deepcopy(v)
-  vim.tbl_add_reverse_lookup(tbl)
+
+  if vim.version().minor >= 11 then
+    for kt, vt in pairs(tbl) do
+      tbl[vt] = kt
+    end
+  else
+    vim.tbl_add_reverse_lookup(tbl)
+  end
   protocol[k] = tbl
 end
 

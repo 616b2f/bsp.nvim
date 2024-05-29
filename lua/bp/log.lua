@@ -10,7 +10,13 @@ local levels = vim.deepcopy(vim.log.levels)
 
 -- This is put here on purpose after the loop above so that it doesn't
 -- interfere with iterating the levels
-vim.tbl_add_reverse_lookup(levels)
+if vim.version().minor >= 11 then
+  for k, v in pairs(levels) do
+    levels[v] = k
+  end
+else
+  vim.tbl_add_reverse_lookup(levels)
+end
 
 -- Default log level is warn.
 local current_log_level = levels.WARN

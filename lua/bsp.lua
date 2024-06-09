@@ -442,31 +442,54 @@ function bsp.run_build_target ()
 end
 
 function bsp.cleancache_build_target()
+  ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
+  local client_targets = {}
   local clients = bsp.get_clients()
   for _, client in ipairs(clients) do
-    local target_ids = {}
     for _, target in pairs(client.build_targets) do
-      table.insert(target_ids, target.id)
-    end
-    if next(target_ids) ~= nil then
-      ---@type bsp.CleanCacheParams
-      local cleanCacheParams = {
-        targets = {target_ids[1]}
-      }
-      client.request(
-        ms.buildTarget_cleanCache,
-        cleanCacheParams,
-        ---comment
-        ---@param err bp.ResponseError|nil
-        ---@param result bsp.CleanCacheResult
-        ---@param context bsp.HandlerContext
-        ---@param config table|nil
-        function (err, result, context, config)
-          vim.notify("BSP-CleanCache status: cleaned=" .. tostring(result.cleaned) .. " " .. (result.message or ''))
-        end,
-      0)
+      if target.capabilities.canCompile then
+        table.insert(client_targets, {
+          client = client,
+          target = target
+        })
+      end
     end
   end
+
+  vim.ui.select(
+    client_targets,
+    {
+      prompt = "select target to clean",
+      ---@type fun(item: { client: bsp.Client, target: bsp.BuildTarget }) : string
+      format_item = function (item)
+        return (item.target.displayName or item.target.id.uri)
+            .. " "
+            .. vim.inspect(item.target.tags)
+            .. " : " .. item.client.name
+      end,
+      kind = "bsp.BuildTarget"
+    },
+    ---@param clientTarget { client: bsp.Client, target: bsp.BuildTarget }
+    function (clientTarget)
+      if clientTarget then
+        ---@type bsp.CleanCacheParams
+        local cleanCacheParams = {
+          targets = {clientTarget.target.id}
+        }
+        clientTarget.client.request(
+          ms.buildTarget_cleanCache,
+          cleanCacheParams,
+          ---comment
+          ---@param err bp.ResponseError|nil
+          ---@param result bsp.CleanCacheResult
+          ---@param context bsp.HandlerContext
+          ---@param config table|nil
+          function (err, result, context, config)
+            vim.notify("BSP-CleanCache status: cleaned=" .. tostring(result.cleaned) .. " " .. (result.message or ''))
+          end,
+        0)
+      end
+    end)
 end
 
 ---@param config bsp.ClientConfig

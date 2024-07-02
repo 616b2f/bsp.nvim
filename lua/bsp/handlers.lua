@@ -96,13 +96,13 @@ local function diagnostic_lsp_to_toqflist(filename, build_target, diagnostics, e
       end_lnum = _end_line,
       end_col = line_byte_from_position(_end_line, _end_character, offset_encoding),
       type = diagnostic.severity and errlist_type_map[diagnostic.severity] or 'E',
-      text = diagnostic.message,
+      text = (diagnostic.code and "[" .. diagnostic.code .. "] ") .. diagnostic.message,
       source = diagnostic.source,
       filename = filename:gsub("^file://", ""),
-      code = diagnostic.code,
       vcol = 1,
       namespace = ns,
       user_data = {
+        code = diagnostic.code,
         text_document = filename,
         build_target = build_target
       }

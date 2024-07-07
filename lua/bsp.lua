@@ -853,7 +853,11 @@ function bsp.start_client(config)
     handlers = handlers,
     commands = config.commands or {},
 
-    --- @type table<integer,{ type: string, bufnr: integer, method: string}>
+    ---@class bsp.ClientRequest
+    ---@field type string
+    ---@field bufnr integer
+    ---@field method string
+    --- @type table<integer, bsp.ClientRequest>
     requests = {},
 
     --- Contains progress report messages.

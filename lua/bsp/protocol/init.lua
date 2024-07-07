@@ -141,6 +141,7 @@ for k, v in pairs(constants) do
 end
 
 protocol.Methods = {
+  dollar_cancelRequest = "$/cancelRequest",
 
   build_initialize = "build/initialize",
 

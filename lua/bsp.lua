@@ -392,6 +392,49 @@ function bsp.test_build_target()
   end)
 end
 
+
+function bsp.cancel_run_build_target ()
+  local run_requests = {}
+  local clients = bsp.get_clients()
+  local run_method = require('bsp.protocol').Methods.buildTarget_run
+  for _, client in ipairs(clients) do
+    for index, request in pairs(client.requests) do
+      if request.method == run_method and request.type == "pending" then
+        table.insert(run_requests, {
+          client_id = client.id,
+          client_name = client.name,
+          request_id = index,
+          request = request
+        })
+      end
+    end
+  end
+
+  vim.ui.select(run_requests, {
+    prompt = "select run to cancel",
+    ---@type fun(item: { client_id: integer, client_name: string, request_id: integer, request: bsp.ClientRequest }) : string
+    format_item = function (item)
+      return item.client_name
+          .. " : "
+          .. vim.inspect(item.request.bufnr)
+          .. " "
+          .. vim.inspect(item.request.method)
+          .. " "
+          .. vim.inspect(item.request.type)
+    end,
+    kind = "bsp.ClientRequest"
+  },
+  ---@param run_requst { client_id: integer, client_name: string, request_id: integer, request: bsp.ClientRequest }
+  function (run_requst)
+    if run_requst then
+        local client = bsp.get_client_by_id(run_requst.client_id)
+        assert(client, "client not found: " .. run_requst.client_id)
+        client.cancel_request(run_requst.request_id);
+    end
+  end)
+
+end
+
 function bsp.run_build_target ()
   ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
   local client_targets = {}

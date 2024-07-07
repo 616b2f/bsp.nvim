@@ -4,6 +4,7 @@ local cmd = api.nvim_create_user_command
 cmd('BspCompile', function() require('bsp').compile_build_target() end, { nargs = 0 })
 cmd('BspTest', function() require('bsp').test_build_target() end, { nargs = 0 })
 cmd('BspRun', function() require('bsp').run_build_target() end, { nargs = 0 })
+cmd('BspCancelRun', function() require('bsp').cancel_run_build_target() end , { nargs = 0 })
 
 cmd('BspLog', function() vim.cmd(string.format('tabnew %s', require('bsp').get_log_path())) end, { nargs = 0 })
 cmd('BspConsole', function () require('bsp.bsp-console').open() end, { nargs = 0 })

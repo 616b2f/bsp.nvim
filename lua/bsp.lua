@@ -464,6 +464,8 @@ function bsp.run_build_target ()
   ---@param clientTarget { client: bsp.Client, target: bsp.BuildTarget }
   function (clientTarget)
     if clientTarget then
+        require('bsp.bsp-console').open('[BSP run]')
+
         ---@type bsp.RunParams
         local runParams = {
           target = clientTarget.target.id

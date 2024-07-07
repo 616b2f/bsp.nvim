@@ -1,8 +1,9 @@
 local protocol = require('bsp.protocol')
-local console = require('bsp.bsp-console')
+local console = require('bsp.bsp-console'):new()
 local ms = protocol.Methods
 local api = vim.api
 
+local run_console = require('bsp.bsp-console'):new({name='[BSP run]'})
 
 local ns = vim.api.nvim_create_namespace("bsp")
 
@@ -27,7 +28,7 @@ local function write_to_console_with_time(client_name, client_id, eventtime, dat
     time = tostring(eventtime)
   end
   local message = string.format('[bsp:%s(id=%s)] %s: %s', client_name, tostring(client_id), time, string.gsub(data, '\n', ''))
-  console.write({message})
+  console:write({message})
 end
 
 --- Writes to BSP console buffer
@@ -36,7 +37,16 @@ end
 ---@param data string Will be concatenated before being written
 local function write_to_console(client_name, client_id, data)
   local message = string.format('[bsp:%s(id=%s)] %s', client_name, tostring(client_id), string.gsub(data, '\n', ''))
-  console.write({message})
+  console:write({message})
+end
+
+--- Writes to BSP run console buffer
+---@param client_name string Name of the client
+---@param client_id integer ID of the client
+---@param data string Will be concatenated before being written
+local function write_to_run_console(client_name, client_id, data)
+  local message = string.format('[bsp:%s(id=%s)] %s', client_name, tostring(client_id), string.gsub(data, '\n', ''))
+  run_console:write({message})
 end
 
 local errlist_type_map = {
@@ -148,7 +158,7 @@ M[ms.run_printStdout] = function(_, result, ctx)
     return vim.NIL
   end
 
-  write_to_console(client.name, ctx.client_id, vim.inspect(result))
+  write_to_run_console(client.name, ctx.client_id, result.message)
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onrunprintstderr-notification
@@ -162,7 +172,7 @@ M[ms.run_printStderr] = function(_, result, ctx)
     return vim.NIL
   end
 
-  write_to_console(client.name, ctx.client_id, vim.inspect(result))
+  write_to_run_console(client.name, ctx.client_id, result.message)
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onbuildlogmessage-notification

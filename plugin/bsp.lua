@@ -7,7 +7,7 @@ cmd('BspRun', function() require('bsp').run_build_target() end, { nargs = 0 })
 cmd('BspCancelRun', function() require('bsp').cancel_run_build_target() end , { nargs = 0 })
 
 cmd('BspLog', function() vim.cmd(string.format('tabnew %s', require('bsp').get_log_path())) end, { nargs = 0 })
-cmd('BspConsole', function () require('bsp.bsp-console').open() end, { nargs = 0 })
+cmd('BspConsole', function () require('bsp.bsp-console').open('[BSP console]') end, { nargs = 0 })
 cmd('BspCleanCache', function() require('bsp').cleancache_build_target() end, { nargs = 0 })
 
 local get_clients_from_cmd_args = function(arg)

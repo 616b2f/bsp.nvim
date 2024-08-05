@@ -922,7 +922,7 @@ function bsp.start_client(config)
       root_uri = workspace_folders[1].uri
     else
       workspace_folders = nil
-      root_uri = nil
+      root_uri = ""
     end
 
     ---@type bsp.InitializeBuildParams
@@ -932,7 +932,7 @@ function bsp.start_client(config)
       version = tostring(vim.version()),
       bspVersion = '2.1.1',
       -- The rootUri of the workspace. Is null if no folder is open.
-      rootUri = root_uri or vim.NIL,
+      rootUri = root_uri,
       -- The workspace folders configured in the client when the server starts.
       -- This property is only available if the client supports workspace folders.
       -- It can be `null` if the client supports workspace folders but none are
@@ -980,9 +980,9 @@ function bsp.start_client(config)
       client.server_capabilities =
         assert(result.capabilities, "initialize result doesn't contain capabilities")
 
-      if next(config.settings) then
-        client.notify(ms.workspace_didChangeConfiguration, { settings = config.settings })
-      end
+      -- if next(config.settings) then
+      --   client.notify(ms.workspace_didChangeConfiguration, { settings = config.settings })
+      -- end
 
       if config.on_init then
         local status, err = pcall(config.on_init, client, result)
@@ -993,12 +993,6 @@ function bsp.start_client(config)
 
       -- load project related data and save it in the client properties
       client.load_project_data()
-
-      local _ = logger.info()
-        and logger.info(
-          'server_capabilities',
-          { server_capabilities = client.server_capabilities }
-        )
 
       -- Only assign after initialized.
       active_clients[client_id] = client
@@ -1030,9 +1024,6 @@ function bsp.start_client(config)
         resolve_handler(method),
         string.format('not found: %q request handler for client %q.', method, client.name)
       )
-    end
-    if logger.debug() then
-      logger.debug('client.request', client_id, method, params, handler, bufnr)
     end
     local success, request_id = rpc.request(method, params, function(err, result)
       local context = {

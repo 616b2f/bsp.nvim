@@ -5,6 +5,57 @@ cmd('BspCompile', function() require('bsp').compile_build_target() end, { nargs 
 cmd('BspTest', function() require('bsp').test_build_target() end, { nargs = 0 })
 cmd('BspRun', function() require('bsp').run_build_target() end, { nargs = 0 })
 cmd('BspCancelRun', function() require('bsp').cancel_run_build_target() end , { nargs = 0 })
+cmd('BspListSouces', function ()
+  ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
+  local client_targets = {}
+  local clients = require("bsp").get_clients()
+  for _, client in ipairs(clients) do
+    for _, target in pairs(client.build_targets) do
+      if target.capabilities.canRun then
+        table.insert(client_targets, {
+          client = client,
+          target = target
+        })
+      end
+    end
+  end
+
+  vim.ui.select(client_targets, {
+    prompt = "select target to to list sources for",
+    ---@type fun(item: { client: bsp.Client, target: bsp.BuildTarget }) : string
+    format_item = function (item)
+      return item.target.displayName
+          .. " "
+          .. vim.inspect(item.target.tags)
+          .. " : " .. item.client.name
+    end,
+    kind = "bsp.BuildTarget"
+  },
+  ---@param clientTarget { client: bsp.Client, target: bsp.BuildTarget }
+  function (clientTarget)
+    if clientTarget then
+        ---@type bsp.SourcesParams
+        local sourcesParams = {
+          targets = {
+            clientTarget.target.id
+          }
+        }
+        clientTarget.client.request(
+          require("bsp.protocol").Methods.buildTarget_sources,
+          sourcesParams,
+          ---comment
+          ---@param err bp.ResponseError|nil
+          ---@param result bsp.SourcesResult
+          ---@param context bsp.HandlerContext
+          ---@param config table|nil
+          function (err, result, context, config)
+            print(vim.inspect(result));
+            -- vim.notify("BSP-Run status: " .. bsp.protocol.StatusCode[result.statusCode])
+          end,
+        0)
+    end
+  end)
+end, { nargs = 0 })
 
 cmd('BspLog', function() vim.cmd(string.format('tabnew %s', require('bsp').get_log_path())) end, { nargs = 0 })
 cmd('BspConsole', function () require('bsp.bsp-console').open('[BSP console]') end, { nargs = 0 })
@@ -81,6 +132,11 @@ cmd('BspInfo', function()
     table.insert(lines, "Build Tagets: ")
     for _, btarget in pairs(client.build_targets) do
       table.insert(lines, "\t" .. btarget.id.uri)
+    end
+    table.insert(lines, "Server Capabilities: ")
+    local caps = vim.inspect(client.server_capabilities)
+    for _, line in pairs(vim.split(caps, '\n', {plain=true})) do
+      table.insert(lines, line)
     end
   end
 

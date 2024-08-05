@@ -9,6 +9,8 @@ local protocol = {}
         'java',
         'csharp',
         'rust',
+        'scala',
+        'kotlin'
       }
     }
   end

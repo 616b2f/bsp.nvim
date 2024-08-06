@@ -32,7 +32,28 @@ Plug '616b2f/bsp.nvim'
 # Setup
 
 ```lua
-require("bsp").setup()
+require("bsp").setup({
+  handlers = {
+    -- e.g. define a handler method for "dotnet-bsp" server which returns true
+    -- when it has to be started
+    ['dotnet-bsp'] = function (workspace_dir, connection_details)
+      -- example 1: when launching from specific directory
+      if workspace_dir == vim.fn.expand("$HOME/devel/dotnet-bsp") then
+        return true
+      end
+
+      -- example 2: when current folder contains specific files
+      for name, type in vim.fs.dir(workspace_dir) do
+          if type == "file" and
+             (name:match('.*.sln$') or name:match('.*.csproj$')) then
+            return true
+          end
+      end
+
+      return false
+    end
+  }
+})
 ```
 
 ## Setup BSP Server

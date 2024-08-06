@@ -32,4 +32,7 @@ function M.create_config(server_name, workspace_dir)
   end
 end
 
+function M.default_handlers()
+end
+
 return M

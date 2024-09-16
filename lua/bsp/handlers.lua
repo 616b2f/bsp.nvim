@@ -100,13 +100,14 @@ local function diagnostic_lsp_to_toqflist(filename, build_target, diagnostics, e
     local _end = diagnostic.range['end']
     local _end_line = _end.line and _end.line + 1 or nil
     local _end_character = _end.character and _end.character + 1 or nil
+    local text = ((diagnostic.code and "[" .. diagnostic.code .. "] ") or "") .. diagnostic.message
     return {
       lnum = start_line,
       col = line_byte_from_position(start_line, start_character, offset_encoding),
       end_lnum = _end_line,
       end_col = line_byte_from_position(_end_line, _end_character, offset_encoding),
       type = diagnostic.severity and errlist_type_map[diagnostic.severity] or 'E',
-      text = (diagnostic.code and "[" .. diagnostic.code .. "] ") .. diagnostic.message,
+      text = text,
       source = diagnostic.source,
       filename = filename:gsub("^file://", ""),
       vcol = 1,

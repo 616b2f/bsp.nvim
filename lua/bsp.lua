@@ -326,6 +326,7 @@ function bsp.compile_build_target()
       if clientTarget then
           ---@type bsp.CompileParams
           local compileParams = {
+            originId = utils.new_origin_id(),
             targets = { clientTarget.target.id }
           }
           clientTarget.client.request(
@@ -374,6 +375,7 @@ function bsp.test_build_target()
     if clientTarget then
         ---@type bsp.TestParams
         local testParams = {
+          originId = utils.new_origin_id(),
           targets = { clientTarget.target.id }
         }
         clientTarget.client.request(
@@ -468,6 +470,7 @@ function bsp.run_build_target ()
 
         ---@type bsp.RunParams
         local runParams = {
+          originId = utils.new_origin_id(),
           target = clientTarget.target.id
         }
         clientTarget.client.request(

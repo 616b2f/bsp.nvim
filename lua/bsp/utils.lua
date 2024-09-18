@@ -23,4 +23,14 @@ function M.find_file_by_patterns(source, patterns)
   return source
 end
 
+---Generates a unique id to be used in the request
+function M.new_origin_id()
+  local chars = vim.iter({1, 2, 3, 4, 5, 6, 7})
+    :map(function ()
+      return string.char(math.random(65, 122))
+    end)
+    :totable()
+  return table.concat(chars)
+end
+
 return M

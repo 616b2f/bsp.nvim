@@ -319,6 +319,20 @@ M[ms.build_taskProgress] = function(_, result, ctx)
 
   client.progress:push(result)
 
+  if result.dataKind == 'test-case-discovered' then
+    ---@type bsp.TestCaseDiscoveredData
+    local test_case = result.data;
+
+    if not client.test_cases[test_case.buildTarget.uri] then
+      client.test_cases[test_case.buildTarget.uri] = {}
+    end
+
+    table.insert(client.test_cases[test_case.buildTarget.uri], test_case)
+
+    local notify_message = "found: " .. test_case.buildTarget.uri .. " " .. test_case.fullyQualifiedName
+    vim.notify(notify_message, vim.log.levels.INFO)
+  end
+
   vim.schedule(function()
     api.nvim_exec_autocmds('User', {
       pattern = 'BspProgress:progress',

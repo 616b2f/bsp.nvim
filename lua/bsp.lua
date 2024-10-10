@@ -394,6 +394,194 @@ function bsp.test_build_target()
   end)
 end
 
+function bsp.test_file_target()
+  ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
+  local client_targets = {}
+  local clients = require("bsp").get_clients()
+  for _, client in ipairs(clients) do
+    for _, target in pairs(client.build_targets) do
+      if target.capabilities.canTest then
+        table.insert(client_targets, {
+          client = client,
+          target = target
+        })
+      end
+    end
+  end
+
+  vim.ui.select(client_targets, {
+    prompt = "select target to to list sources for",
+    ---@type fun(item: { client: bsp.Client, target: bsp.BuildTarget }) : string
+    format_item = function (item)
+      return item.target.displayName
+          .. " "
+          .. vim.inspect(item.target.tags)
+          .. " : " .. item.client.name
+    end,
+    kind = "bsp.BuildTarget"
+  },
+    ---@param buildTarget { client: bsp.Client, target: bsp.BuildTarget }
+    function (buildTarget)
+      local item = {client = buildTarget.client, target_id = buildTarget.target.id }
+      ---@type bsp.SourcesParams
+      local sourcesParams = {
+        targets = {
+          item.target_id
+        }
+      }
+      item.client.request(
+        require("bsp.protocol").Methods.buildTarget_sources,
+        sourcesParams,
+        ---comment
+        ---@param err bp.ResponseError|nil
+        ---@param result bsp.SourcesResult
+        ---@param context bsp.HandlerContext
+        ---@param config table|nil
+        function (err, result, context, config)
+          local sources = {}
+          for _, sources_item in ipairs(result.items) do
+            for _, source_item in ipairs(sources_item.sources) do
+              local full_path = sources_item.roots[1] .. "/" .. string.gsub(source_item.uri, "file://", "")
+              table.insert(sources, {
+                buildTarget = sources_item.target,
+                source_file_full_path = full_path,
+                uri = source_item.uri
+              })
+            end
+          end
+          vim.ui.select(sources, {
+            prompt = "select target to to list sources for",
+            format_item = function (source)
+              return source.source_file_full_path
+            end,
+            kind = "bsp.BuildTarget"
+          },
+          function (source)
+            if source then
+                ---@type bsp.TestParams
+                local testParams = {
+                  originId = utils.new_origin_id(),
+                  targets = { source.buildTarget },
+                  dataKind = "dotnet-test",
+                  data = {
+                    filters = {
+                      source.source_file_full_path,
+                    }
+                  }
+                }
+                local ms = require("bsp.protocol").Methods
+                item.client.request(
+                  ms.buildTarget_test,
+                  testParams,
+                  ---comment
+                  ---@param err bp.ResponseError|nil
+                  ---@param result bsp.TestResult
+                  ---@param context bsp.HandlerContext
+                  ---@param config table|nil
+                  function (err, result, context, config)
+                    vim.notify("BSP-Test status: " .. require("bsp").protocol.StatusCode[result.statusCode])
+                  end,
+                0)
+            end
+          end)
+        end,
+      0)
+    end
+  )
+end
+
+function bsp.test_case_target()
+  ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
+  local client_targets = {}
+  local clients = require("bsp").get_clients()
+  for _, client in ipairs(clients) do
+    for _, target in pairs(client.build_targets) do
+      if target.capabilities.canTest then
+        table.insert(client_targets, {
+          client = client,
+          target = target
+        })
+      end
+    end
+  end
+
+  vim.ui.select(client_targets, {
+    prompt = "select target to to list sources for",
+    ---@type fun(item: { client: bsp.Client, target: bsp.BuildTarget }) : string
+    format_item = function (item)
+      return item.target.displayName
+          .. " "
+          .. vim.inspect(item.target.tags)
+          .. " : " .. item.client.name
+    end,
+    kind = "bsp.BuildTarget"
+  },
+    ---@param buildTarget { client: bsp.Client, target: bsp.BuildTarget }
+    function (buildTarget)
+      bsp.__list_test_cases({client = buildTarget.client, target_id = buildTarget.target.id })
+    end
+  )
+end
+
+---@param item { client: bsp.Client, target_id: bsp.BuildTargetIdentifier }
+function bsp.__list_test_cases(item)
+  --- find build targets for which test cases have been discovered
+  ---@type bsp.TestCaseDiscoveredData[]
+  local test_cases = {}
+  if item.client.test_cases[item.target_id.uri] then
+    test_cases = item.client.test_cases[item.target_id.uri]
+  elseif item.client.build_targets[item.target_id.uri] then
+    local build_target = item.client.build_targets[item.target_id.uri]
+    for _, depencency in pairs(build_target.dependencies) do
+      if item.client.test_cases[depencency.uri] then
+        for _, test_case in pairs(item.client.test_cases[depencency.uri]) do
+          table.insert(test_cases, test_case)
+        end
+      end
+    end
+  end
+
+  if test_cases then
+    vim.ui.select(test_cases, {
+      prompt = "select test case to run",
+      ---@type fun(test_case: bsp.TestCaseDiscoveredData) : string
+      format_item = function (test_case)
+        return test_case.displayName
+            .. " [" .. test_case.source .. "] "
+            .. " : " .. item.client.name
+      end,
+      kind = "bsp.TestCaseDiscoveredData"
+    },
+      ---@param test_case bsp.TestCaseDiscoveredData
+      function (test_case)
+        local testParams = {
+          originId = utils.new_origin_id(),
+          targets = { test_case.buildTarget },
+          dataKind = "dotnet-test",
+          data = {
+            filters = {
+              "FullyQualifiedName=" .. test_case.fullyQualifiedName,
+            }
+          }
+        }
+        local ms = require("bsp.protocol").Methods
+        item.client.request(
+          ms.buildTarget_test,
+          testParams,
+          ---comment
+          ---@param err bp.ResponseError|nil
+          ---@param result bsp.TestResult
+          ---@param context bsp.HandlerContext
+          ---@param config table|nil
+          function (err, result, context, config)
+            vim.notify("BSP-TestCase status: " .. require("bsp").protocol.StatusCode[result.statusCode])
+          end,
+        0)
+      end
+    )
+  end
+end
+
 
 function bsp.cancel_run_build_target ()
   local run_requests = {}
@@ -482,7 +670,9 @@ function bsp.run_build_target ()
           ---@param context bsp.HandlerContext
           ---@param config table|nil
           function (err, result, context, config)
-            vim.notify("BSP-Run status: " .. bsp.protocol.StatusCode[result.statusCode])
+            if result then
+              vim.notify("BSP-Run status: " .. bsp.protocol.StatusCode[result.statusCode])
+            end
           end,
         0)
     end
@@ -876,6 +1066,9 @@ function bsp.start_client(config)
     ---@type table<URI,bsp.BuildTarget> table of build targets by target URI
     build_targets = {},
 
+    ---@type table<URI,bsp.TestCaseDiscoveredData[]> table of test cases found by target URI
+    test_cases = {},
+
     ---@type table<bsp.ResourcesItem>
     resources = {},
 
@@ -891,9 +1084,6 @@ function bsp.start_client(config)
     ---@type URI
     workspace_dir = config.root_dir
   }
-
-  ---@type table<string|integer, string> title of unfinished progress sequences by token
-  client.progress.pending = {}
 
   --- @type bsp.BuildClientCapabilities
   client.config.capabilities = config.capabilities or protocol.make_client_capabilities()
@@ -1062,7 +1252,6 @@ function bsp.start_client(config)
     return success, request_id
   end
 
-  ---@private
   --- Sends a request to the server and synchronously waits for the response.
   ---
   --- This is a wrapper around {client.request}
@@ -1193,6 +1382,20 @@ function bsp.start_client(config)
     return rpc.is_closing()
   end
 
+  ---Get an intersect of a and b in a new array
+  ---@param a string[]
+  ---@param b string[]
+  ---@return string[]
+  function bsp.__get_intersect(a, b)
+    local intersect_list = {}
+    for _, value in pairs(a) do
+      if vim.list_contains(b, value) then
+        table.insert(intersect_list, value)
+      end
+    end
+    return intersect_list
+  end
+
   ---@private
   --- Load project related data
   ---
@@ -1206,6 +1409,35 @@ function bsp.start_client(config)
           for _, target in ipairs(result.targets) do
             client.build_targets[target.id.uri] = target
             table.insert(build_target_identifier, target.id)
+          end
+
+          if client.server_capabilities.testCaseDiscoveryProvider then
+
+            local supported_language_ids = bsp.__get_intersect(client.config.capabilities.languageIds, client.server_capabilities.testCaseDiscoveryProvider.languageIds)
+            local supported_targets_ids = vim.iter(result.targets)
+              ---@param t bsp.BuildTarget
+              :filter(function (t)
+                return next(bsp.__get_intersect(t.languageIds, supported_language_ids)) ~= nil
+              end)
+              ---@param t bsp.BuildTarget
+              :map(function (t)
+                return t.id
+              end)
+              :totable()
+
+            ---@type bsp.TestCaseDiscoveredParams
+            local testCaseDiscoveredParams = {
+                targets = supported_targets_ids,
+                originId = bsp.util.new_origin_id()
+            }
+            client.request(ms.buildTarget_testCaseDiscovery, testCaseDiscoveredParams,
+              ---@param result bsp.TestCaseDiscoveredResult
+              function (_, result, _, _)
+                if result and result.statusCode ~= bsp.protocol.StatusCode.OK then
+                  vim.notify("buildTarget/testCaseDiscovery request returned: " .. result.statusCode .. " for client: " .. client.id, vim.log.levels.ERROR)
+                end
+              end,
+              0)
           end
 
           ---@type bsp.SourcesParams

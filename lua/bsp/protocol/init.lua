@@ -69,6 +69,12 @@ local constants = {
     TestStart = "test-start",
     ---`data` field must contain a TestTask object.
     TestTask = "test-task",
+    TestCaseDiscoveryTask = "test-case-discovery-task"
+  },
+
+  TaskProgressDataKind = {
+    ---`data` field must contain a bsp.TestCaseDiscoveredData object.
+    TestCaseDiscovered = "test-case-discovered",
   },
 
   TaskFinishDataKind = {
@@ -78,6 +84,7 @@ local constants = {
     TestFinish = "test-finish",
     ---`data` field must contain a TestReport object.
     TestReport = "test-report",
+    TestCaseDiscoveryFinish = "test-case-discovery-finish"
   },
 
   ---@class bsp.TestStatus
@@ -126,7 +133,7 @@ local constants = {
     File = 1,
     ---The output path item references a directory.
     Directory = 2,
-  }
+  },
 }
 
 for k, v in pairs(constants) do
@@ -161,6 +168,7 @@ protocol.Methods = {
   buildTarget_compile = "buildTarget/compile",
   buildTarget_run = "buildTarget/run",
   buildTarget_test = "buildTarget/test",
+  buildTarget_testCaseDiscovery = "buildTarget/testCaseDiscovery",
   buildTarget_cleanCache = "buildTarget/cleanCache",
   debugSession_start = "debugSession/start",
   run_readStdin = "run/readStdin",

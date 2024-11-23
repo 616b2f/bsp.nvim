@@ -100,13 +100,14 @@ local function diagnostic_lsp_to_toqflist(filename, build_target, diagnostics, e
     local _end = diagnostic.range['end']
     local _end_line = _end.line and _end.line + 1 or nil
     local _end_character = _end.character and _end.character + 1 or nil
+    local text = ((diagnostic.code and "[" .. diagnostic.code .. "] ") or "") .. diagnostic.message
     return {
       lnum = start_line,
       col = line_byte_from_position(start_line, start_character, offset_encoding),
       end_lnum = _end_line,
       end_col = line_byte_from_position(_end_line, _end_character, offset_encoding),
       type = diagnostic.severity and errlist_type_map[diagnostic.severity] or 'E',
-      text = (diagnostic.code and "[" .. diagnostic.code .. "] ") .. diagnostic.message,
+      text = text,
       source = diagnostic.source,
       filename = filename:gsub("^file://", ""),
       vcol = 1,
@@ -317,6 +318,20 @@ M[ms.build_taskProgress] = function(_, result, ctx)
   end
 
   client.progress:push(result)
+
+  if result.dataKind == 'test-case-discovered' then
+    ---@type bsp.TestCaseDiscoveredData
+    local test_case = result.data;
+
+    if not client.test_cases[test_case.buildTarget.uri] then
+      client.test_cases[test_case.buildTarget.uri] = {}
+    end
+
+    table.insert(client.test_cases[test_case.buildTarget.uri], test_case)
+
+    local notify_message = "found: " .. test_case.buildTarget.uri .. " " .. test_case.fullyQualifiedName
+    vim.notify(notify_message, vim.log.levels.INFO)
+  end
 
   vim.schedule(function()
     api.nvim_exec_autocmds('User', {

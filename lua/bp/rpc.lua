@@ -144,7 +144,7 @@ if vim.version().minor >= 11 then
     M.client_errors[v] = k
   end
 else
-  M.client_errors = vim.tbl_add_reverse_lookup(M.client_errors)
+  M.client_errors = vim.tbl_add_reverse_lookup(client_errors)
 end
 
 --- Constructs an error message from an BP error object.

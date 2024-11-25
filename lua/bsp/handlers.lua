@@ -59,12 +59,12 @@ local errlist_type_map = {
 --- Convert a list of diagnostics to a list of quickfix items that can be
 --- passed to |setqflist()| or |setloclist()|.
 ---
----@param filename string Filename that is the scope of the diagnostics
+---@param file_uri string Filename that is the scope of the diagnostics
 ---@param diagnostics lsp.Diagnostic[] List of diagnostics.
 ---@param build_target string BuildTarget URI
 ---@param encoding any
 ---@return table[] of quickfix list items |setqflist-what|
-local function diagnostic_lsp_to_toqflist(filename, build_target, diagnostics, encoding)
+local function diagnostic_lsp_to_toqflist(file_uri, build_target, diagnostics, encoding)
   vim.validate({
     diagnostics = {
       diagnostics,
@@ -109,12 +109,12 @@ local function diagnostic_lsp_to_toqflist(filename, build_target, diagnostics, e
       type = diagnostic.severity and errlist_type_map[diagnostic.severity] or 'E',
       text = text,
       source = diagnostic.source,
-      filename = filename:gsub("^file://", ""),
+      filename = vim.uri_to_fname(file_uri),
       vcol = 1,
       namespace = ns,
       user_data = {
         code = diagnostic.code,
-        text_document = filename,
+        text_document = file_uri,
         build_target = build_target
       }
     }
@@ -132,6 +132,74 @@ local function diagnostic_lsp_to_toqflist(filename, build_target, diagnostics, e
     end
   end)
   return list
+end
+
+---@param bufnr integer
+---@return string[]?
+local function get_buf_lines(bufnr)
+  if vim.api.nvim_buf_is_loaded(bufnr) then
+    return vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  end
+
+  local filename = vim.api.nvim_buf_get_name(bufnr)
+  local f = io.open(filename)
+  if not f then
+    return
+  end
+
+  local content = f:read('*a')
+  if not content then
+    -- Some LSP servers report diagnostics at a directory level, in which case
+    -- io.read() returns nil
+    f:close()
+    return
+  end
+
+  local lines = vim.split(content, '\n')
+  f:close()
+  return lines
+end
+
+---@param severity lsp.DiagnosticSeverity
+local function severity_lsp_to_vim(severity)
+  if type(severity) == 'string' then
+    severity = vim.lsp.protocol.DiagnosticSeverity[severity] --- @type integer
+  end
+  return severity
+end
+
+---@param diagnostics lsp.Diagnostic[]
+---@param bufnr integer
+---@param client bsp.Client
+---@return vim.Diagnostic[]
+local function diagnostic_lsp_to_vim(file_uri, build_target, diagnostics, bufnr, client)
+  local buf_lines = get_buf_lines(bufnr)
+  local offset_encoding = client and client.offset_encoding or 'utf-16'
+  --- @param diagnostic lsp.Diagnostic
+  --- @return vim.Diagnostic
+  return vim.tbl_map(function(diagnostic)
+    local start = diagnostic.range.start
+    local _end = diagnostic.range['end']
+    local text = ((diagnostic.code and "[" .. diagnostic.code .. "] ") or "") .. diagnostic.message
+    local line = buf_lines and buf_lines[start.line + 1] or ''
+    --- @type vim.Diagnostic
+    return {
+      lnum = start.line,
+      col = vim.str_byteindex(line, offset_encoding, start.character, false),
+      end_lnum = _end.line,
+      end_col = vim.str_byteindex(line, offset_encoding, _end.character, false),
+      severity = severity_lsp_to_vim(diagnostic.severity),
+      message = text,
+      source = diagnostic.source,
+      code = diagnostic.code,
+      user_data = {
+        bsp = diagnostic,
+        code = diagnostic.code,
+        text_document = file_uri,
+        build_target = build_target
+      },
+    }
+  end, diagnostics)
 end
 
 -- M[ms.workspace_buildTargets] = function(_, result, ctx)
@@ -203,47 +271,20 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
 
   vim.schedule(function ()
 
+
+    print(vim.inspect(result))
     if result.reset and result.textDocument.uri == "file:///" and result.buildTarget.uri == "file:///" then
-      vim.fn.setqflist({}, 'r')
+      vim.diagnostic.reset(ns, nil)
       return
     end
 
-    local diagnostics = diagnostic_lsp_to_toqflist(result.textDocument.uri, result.buildTarget.uri, result.diagnostics, client.offset_encoding)
-
-    local qflist = vim.fn.getqflist({title = "bsp-diagnostics", items = 0 })
-
-    if result.reset then
-      if next(qflist.items) ~= nil then
-        qflist.items = vim.iter(qflist.items)
-          :filter(function (item)
-            if item.user_data and item.user_data.text_document == result.textDocument.uri and item.user_data.build_target == result.buildTarget.uri then
-              return false
-            end
-            return true
-          end)
-          :totable()
-      end
-
-      for _, diag in pairs(diagnostics) do
-        table.insert(qflist.items, diag)
-      end
-      vim.fn.setqflist({}, 'r', qflist)
-    else
-      for _, diag in pairs(diagnostics) do
-        table.insert(qflist.items, diag)
-      end
-      -- vim.fn.setqflist({}, 'r', qflist)
-      vim.fn.setqflist({}, 'a', {
-        title = "bsp-diagnostics",
-        items = diagnostics
-      })
+    local fname = vim.uri_to_fname(result.textDocument.uri)
+    local bufnr = vim.fn.bufadd(fname)
+    if not bufnr then
+      return
     end
 
-    if next(qflist.items) ~= nil then
-      vim.cmd('copen')
-    else
-      vim.cmd('cclose')
-    end
+    vim.diagnostic.set(ns, bufnr, diagnostic_lsp_to_vim(result.textDocument.uri, result.buildTarget.uri, result.diagnostics, bufnr, client))
   end)
 end
 

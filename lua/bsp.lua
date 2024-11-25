@@ -10,6 +10,7 @@ local validate = vim.validate
 local nvim_err_writeln, nvim_command = api.nvim_err_writeln, api.nvim_command
 
 local BspGroup = vim.api.nvim_create_augroup('bsp', { clear = true })
+local ns = vim.api.nvim_create_namespace("bsp")
 
 local bsp = {
   protocol = protocol,
@@ -386,6 +387,18 @@ function bsp.compile_build_target()
                 vim.notify("BSP-Compilation status: " .. bsp.protocol.StatusCode[result.statusCode], vim.log.levels.INFO)
               elseif err then
                 vim.notify("BSP-Compilation failed: " .. err.message, vim.log.levels.ERROR)
+              end
+
+              local diag_counts = vim.diagnostic.count(nil, { namespace=ns })
+              local diag_found = vim.iter(diag_counts)
+                :any(function (count)
+                  return count > 0
+                end)
+              if diag_found then
+                local diag = vim.diagnostic.get(nil, { namespace=ns })
+                local qlist_items = vim.diagnostic.toqflist(diag)
+                vim.fn.setqflist(qlist_items, "r")
+                vim.cmd.copen()
               end
             end,
           0)

@@ -5,8 +5,6 @@ local api = vim.api
 
 local run_console = require('bsp.bsp-console'):new({name='[BSP run]'})
 
-local ns = vim.api.nvim_create_namespace("bsp")
-
 local M = {}
 
 --- Writes to error buffer.
@@ -270,11 +268,12 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
   end
 
   vim.schedule(function ()
+    local ns = vim.api.nvim_create_namespace(client.diagnostics_namespace_name)
 
-
-    print(vim.inspect(result))
     if result.reset and result.textDocument.uri == "file:///" and result.buildTarget.uri == "file:///" then
+      -- reset all diagnostics for the client
       vim.diagnostic.reset(ns, nil)
+      client.diagnostics = {}
       return
     end
 
@@ -284,7 +283,18 @@ M[ms.build_publishDiagnostics] = function(_, result, ctx)
       return
     end
 
-    vim.diagnostic.set(ns, bufnr, diagnostic_lsp_to_vim(result.textDocument.uri, result.buildTarget.uri, result.diagnostics, bufnr, client))
+    local vim_diag = diagnostic_lsp_to_vim(result.textDocument.uri, result.buildTarget.uri, result.diagnostics, bufnr, client)
+
+    local diagnostics_key = result.textDocument.uri .. ":" .. result.buildTarget.uri
+    if not client.diagnostics[diagnostics_key] or result.reset then
+      client.diagnostics[diagnostics_key] = {}
+    end
+
+    for _, diag in pairs(vim_diag) do
+      table.insert(client.diagnostics[diagnostics_key], diag)
+    end
+
+    vim.diagnostic.set(ns, bufnr, client.diagnostics[diagnostics_key])
   end)
 end
 

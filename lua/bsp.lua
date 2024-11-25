@@ -10,7 +10,6 @@ local validate = vim.validate
 local nvim_err_writeln, nvim_command = api.nvim_err_writeln, api.nvim_command
 
 local BspGroup = vim.api.nvim_create_augroup('bsp', { clear = true })
-local ns = vim.api.nvim_create_namespace("bsp")
 
 local bsp = {
   protocol = protocol,
@@ -389,17 +388,8 @@ function bsp.compile_build_target()
                 vim.notify("BSP-Compilation failed: " .. err.message, vim.log.levels.ERROR)
               end
 
-              local diag_counts = vim.diagnostic.count(nil, { namespace=ns })
-              local diag_found = vim.iter(diag_counts)
-                :any(function (count)
-                  return count > 0
-                end)
-              if diag_found then
-                local diag = vim.diagnostic.get(nil, { namespace=ns })
-                local qlist_items = vim.diagnostic.toqflist(diag)
-                vim.fn.setqflist(qlist_items, "r")
-                vim.cmd.copen()
-              end
+              local ns = vim.api.nvim_create_namespace(clientTarget.client.diagnostics_namespace_name)
+              vim.diagnostic.setqflist({ namespace=ns })
             end,
           0)
       end
@@ -1129,6 +1119,12 @@ function bsp.start_client(config)
 
     ---@type table<URI,bsp.TestCaseDiscoveredData[]> table of test cases found by target URI
     test_cases = {},
+
+    --- namespace that should be used for diagnostics
+    diagnostics_namespace_name = "bsp:" .. name .. ":" .. client_id,
+
+    ---@type table<string,vim.Diagnostic[]> table of diagnostics found by file URI and build target URI
+    diagnostics = {},
 
     ---@type table<bsp.ResourcesItem>
     resources = {},

@@ -231,14 +231,38 @@ end
 function bsp.findConnectionDetails ()
   local configs = {}
 
-  -- TODO: search all places for connection config
   -- <workspace-dir>/.bsp/
   -- USER: $XDG_DATA_HOME/bsp/
+  --    if not set use $HOME/.local/share
   -- SYSTEM: $XDG_DATA_DIRS/bsp/
-  local workspace_bsp_dir = vim.fs.find('.bsp', {
-      upward = true,
-      type = 'directory'
-  })
+  --    if not set use /usr/local/share/:/usr/share/
+  local bsp_dirs = {'.bsp'}
+  local user_dir = vim.fn.expand('$HOME/.local/share/bsp')
+
+  if vim.fn.getenv('XDG_DATA_HOME') ~= vim.NIL then
+    user_dir = vim.fn.expand('$XDG_DATA_HOME/bsp')
+  end
+
+  table.insert(bsp_dirs, user_dir)
+
+  local system_dir = vim.fn.expand('/usr/local/share/:/usr/share/')
+  if vim.fn.getenv('XDG_DATA_DIRS') ~= vim.NIL then
+    system_dir = vim.fn.expand('$XDG_DATA_DIRS')
+
+    local system_dirs = vim.split(system_dir, ':', {plain=true})
+    for _, value in pairs(system_dirs) do
+      value = value:gsub('/$', '')
+      table.insert(bsp_dirs, value .. '/bsp')
+    end
+  end
+
+  local workspace_bsp_dir = vim.fs.find(
+      bsp_dirs,
+      {
+        upward = true,
+        type = 'directory'
+      }
+  )
 
   if next(workspace_bsp_dir) then
     local files = vim.fs.find(function(name)
@@ -274,19 +298,43 @@ function bsp.writeConnectionDetails(connection_details, file_path)
   vim.notify("ConnectionDetails where written to: " .. file_path, vim.log.levels.INFO)
 end
 
-function bsp.setup()
-  local connection_details_dict = bsp.findConnectionDetails();
-  if not connection_details_dict then return end
 
+---@class bsp.BspSetupConfig
+---@field handlers {[string]: fun(workspace_dir:string, connection_details:bsp.BspConnectionDetails): boolean}
+
+---Setup config for bsp.nvim plugin
+---@param config bsp.BspSetupConfig
+---@return bsp.Client[]
+function bsp.setup(config)
   local clients = {}
+  local connection_details_dict = bsp.findConnectionDetails();
+
+  if not connection_details_dict then return clients end
+
   for _, connection_detail in pairs(connection_details_dict) do
-    local client_id = bsp.start({
-      name = connection_detail.name,
-      cmd = connection_detail.argv,
-      root_dir = uv.cwd(),
-    })
-    if client_id then
-      clients[client_id] = connection_detail
+    for server_name, handler in pairs(config.handlers) do
+      if connection_detail.name == server_name or
+         server_name == "*" then
+        local workspace_dir = vim.uv.cwd()
+        local ok, result, err = pcall(handler, workspace_dir, connection_detail)
+        if ok then
+          if result then
+
+            local client_id = bsp.start({
+              name = connection_detail.name,
+              cmd = connection_detail.argv,
+              root_dir = uv.cwd(),
+              trace = 'verbose'
+            })
+            if client_id then
+              clients[client_id] = connection_detail
+            end
+          end
+
+        else
+          vim.notify("Failed calling handler function for " .. server_name .. ":" .. err, vim.log.levels.ERROR)
+        end
+      end
     end
   end
 
@@ -339,6 +387,9 @@ function bsp.compile_build_target()
               elseif err then
                 vim.notify("BSP-Compilation failed: " .. err.message, vim.log.levels.ERROR)
               end
+
+              local ns = vim.api.nvim_create_namespace(clientTarget.client.diagnostics_namespace_name)
+              vim.diagnostic.setqflist({ namespace=ns })
             end,
           0)
       end
@@ -1068,6 +1119,12 @@ function bsp.start_client(config)
 
     ---@type table<URI,bsp.TestCaseDiscoveredData[]> table of test cases found by target URI
     test_cases = {},
+
+    --- namespace that should be used for diagnostics
+    diagnostics_namespace_name = "bsp:" .. name .. ":" .. client_id,
+
+    ---@type table<string,vim.Diagnostic[]> table of diagnostics found by file URI and build target URI
+    diagnostics = {},
 
     ---@type table<bsp.ResourcesItem>
     resources = {},

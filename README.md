@@ -32,7 +32,62 @@ Plug '616b2f/bsp.nvim'
 # Setup
 
 ```lua
-require("bsp").setup()
+-- Uncomment if you want to set log level to debugging
+-- require("bp.log").set_level(vim.log.levels.DEBUG)
+
+local bsp = require("bsp")
+bsp.setup({
+  handlers = {
+
+    ['cargo-bsp'] = function (workspace_dir, connection_details)
+      -- cargo.toml in the current workspace (non recursive)
+      for name, type in vim.fs.dir(workspace_dir) do
+          if (type == "file") and
+             name:match('^cargo.toml$') then
+            return true
+          end
+      end
+
+      return false
+    end,
+
+    ['gradle-bsp'] = function (workspace_dir, connection_details)
+      -- gradle or gradlew.bat in the current workspace (non recursive)
+      for name, type in vim.fs.dir(workspace_dir) do
+          if (type == "file") and
+             (name:match('^gradlew$') or name:match('^gradlew.bat$')) then
+            return true
+          end
+      end
+
+      return false
+    end,
+
+    ['dotnet-bsp'] = function (workspace_dir, connection_details)
+      -- *.csproj or *.sln in the current workspace (non recursive)
+      for name, type in vim.fs.dir(workspace_dir) do
+          if (type == "file") and
+             (name:match('.*.sln$') or name:match('.*.csproj$')) then
+            return true
+          end
+      end
+
+      return false
+    end,
+
+    ['*'] = function (workspace_dir, connection_details)
+      -- .bsp/*.json
+      for name, type in vim.fs.dir(workspace_dir .. "/.bsp/") do
+          if (type == "file") and
+             name:match('^.*%.json$') then
+            return true
+          end
+      end
+
+      return false
+    end
+  }
+})
 ```
 
 ## Setup BSP Server

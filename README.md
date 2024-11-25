@@ -32,20 +32,54 @@ Plug '616b2f/bsp.nvim'
 # Setup
 
 ```lua
-require("bsp").setup({
+-- Uncomment if you want to set log level to debugging
+-- require("bp.log").set_level(vim.log.levels.DEBUG)
+
+local bsp = require("bsp")
+bsp.setup({
   handlers = {
-    -- e.g. define a handler method for "dotnet-bsp" server which returns true
-    -- when it has to be started
-    ['dotnet-bsp'] = function (workspace_dir, connection_details)
-      -- example 1: when launching from specific directory
-      if workspace_dir == vim.fn.expand("$HOME/devel/dotnet-bsp") then
-        return true
+
+    ['cargo-bsp'] = function (workspace_dir, connection_details)
+      -- cargo.toml in the current workspace (non recursive)
+      for name, type in vim.fs.dir(workspace_dir) do
+          if (type == "file") and
+             name:match('^cargo.toml$') then
+            return true
+          end
       end
 
-      -- example 2: when current folder contains specific files
+      return false
+    end,
+
+    ['gradle-bsp'] = function (workspace_dir, connection_details)
+      -- gradle or gradlew.bat in the current workspace (non recursive)
       for name, type in vim.fs.dir(workspace_dir) do
-          if type == "file" and
+          if (type == "file") and
+             (name:match('^gradlew$') or name:match('^gradlew.bat$')) then
+            return true
+          end
+      end
+
+      return false
+    end,
+
+    ['dotnet-bsp'] = function (workspace_dir, connection_details)
+      -- *.csproj or *.sln in the current workspace (non recursive)
+      for name, type in vim.fs.dir(workspace_dir) do
+          if (type == "file") and
              (name:match('.*.sln$') or name:match('.*.csproj$')) then
+            return true
+          end
+      end
+
+      return false
+    end,
+
+    ['*'] = function (workspace_dir, connection_details)
+      -- .bsp/*.json
+      for name, type in vim.fs.dir(workspace_dir .. "/.bsp/") do
+          if (type == "file") and
+             name:match('^.*%.json$') then
             return true
           end
       end

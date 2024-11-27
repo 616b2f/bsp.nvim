@@ -93,17 +93,12 @@ bsp.setup({
 ## Setup BSP Server
 you can use my fork of mason-registry to install bsp-servers (if there is enough interest I will create PRs for them upsream). For that you have to clone it first, e.g.:
 
-```sh
-$ cd ~/my-folder
-$ git clone https://github.com/616b2f/mason-registry.git
-```
-
 Add the fork as additional registry, this will first look in the official repository and after that in my fork.
 ```lua
 require("mason").setup({
   registries = {
     "github:mason-org/mason-registry",
-    "file:~/my-folder/mason-registry", -- directory of the cloned fork
+    "github:616b2f/mason-registry-bsp",
   }
 })
 ```

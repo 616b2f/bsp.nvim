@@ -1490,8 +1490,8 @@ function bsp.start_client(config)
             client.request(ms.buildTarget_testCaseDiscovery, testCaseDiscoveredParams,
               ---@param result bsp.TestCaseDiscoveredResult
               function (_, result, _, _)
-                if result and result.statusCode ~= bsp.protocol.StatusCode.OK then
-                  vim.notify("buildTarget/testCaseDiscovery request returned: " .. result.statusCode .. " for client: " .. client.id, vim.log.levels.ERROR)
+                if result and result.statusCode ~= bsp.protocol.Constants.StatusCode.Ok then
+                  vim.notify("TestCaseDiscovery finished: " .. bsp.protocol.StatusCode[result.statusCode] .. " for client: " .. client.id, vim.log.levels.ERROR)
                 end
               end,
               0)

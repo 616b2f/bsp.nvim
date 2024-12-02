@@ -149,6 +149,8 @@ for k, v in pairs(constants) do
   protocol[k] = tbl
 end
 
+protocol.Constants = constants
+
 protocol.Methods = {
   dollar_cancelRequest = "$/cancelRequest",
 

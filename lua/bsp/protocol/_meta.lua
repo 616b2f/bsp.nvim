@@ -236,7 +236,7 @@ error('Cannot require a meta file')
 ---Source location of the test, as LSP location.
 ---@field location? bsp.Location
 
----@class bsp.TestFinish {
+---@class bsp.TestFinish
 ---Name or description of the test.
 ---@field displayName string
 ---Information about completion of the test, for example an error message.
@@ -252,20 +252,20 @@ error('Cannot require a meta file')
 ---@field data? bsp.TestFinishData
 
 ---@class bsp.TestReport
---The build target that was compiled.
---@field target bsp.BuildTargetIdentifier
---The total number of successful tests.
---@field passed integer
---The total number of failed tests.
---@field failed integer
---The total number of ignored tests.
---@field ignored integer
---The total number of cancelled tests.
---@field cancelled integer
---The total number of skipped tests.
---@field skipped integer
---The total number of milliseconds tests take to run (e.g. doesn't include compile times).
---@field time? integer
+---The build target that was compiled.
+---@field target bsp.BuildTargetIdentifier
+---The total number of successful tests.
+---@field passed integer
+---The total number of failed tests.
+---@field failed integer
+---The total number of ignored tests.
+---@field ignored integer
+---The total number of cancelled tests.
+---@field cancelled integer
+---The total number of skipped tests.
+---@field skipped integer
+---The total number of milliseconds tests take to run (e.g. doesn't include compile times).
+---@field time? integer
 
 ---@alias bsp.TestFinishDataKind string
 

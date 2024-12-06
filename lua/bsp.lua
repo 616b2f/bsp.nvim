@@ -24,6 +24,74 @@ local bsp = {
   -- Export these directly from rpc.
   rpc_response_error = bp_rpc.rpc_response_error,
   client_errors = bp_rpc.client_errors,
+
+
+}
+
+---@class bsp.BspSetupConfig
+---@field log { level: number? }
+---@field ui { enable: boolean }
+---@field plugins { fidget: boolean }
+---@field handlers {[string]: fun(workspace_dir:string, connection_details:bsp.BspConnectionDetails): boolean}
+local default_config = {
+  log = {
+    level = nil
+  },
+  ui = {
+    enable = false
+  },
+  plugins = {
+    fidget = false
+  },
+  handlers = {
+    ['cargo-bsp'] = function (workspace_dir, connection_details)
+      -- cargo.toml in the current workspace (non recursive)
+      for name, type in vim.fs.dir(workspace_dir) do
+          if (type == "file") and
+             name:match('^cargo.toml$') then
+            return true
+          end
+      end
+
+      return false
+    end,
+
+    ['gradle-bsp'] = function (workspace_dir, connection_details)
+      -- gradle or gradlew.bat in the current workspace (non recursive)
+      for name, type in vim.fs.dir(workspace_dir) do
+          if (type == "file") and
+             (name:match('^gradlew$') or name:match('^gradlew.bat$')) then
+            return true
+          end
+      end
+
+      return false
+    end,
+
+    ['dotnet-bsp'] = function (workspace_dir, connection_details)
+      -- *.csproj or *.sln in the current workspace (non recursive)
+      for name, type in vim.fs.dir(workspace_dir) do
+          if (type == "file") and
+             (name:match('.*.sln$') or name:match('.*.csproj$')) then
+            return true
+          end
+      end
+
+      return false
+    end,
+
+    ['*'] = function (workspace_dir, connection_details)
+      -- .bsp/*.json
+      for name, type in vim.fs.dir(workspace_dir .. "/.bsp/") do
+          if (type == "file") and
+             name:match('^.*%.json$') then
+            return true
+          end
+      end
+
+      return false
+    end
+  }
 }
 
 -- maps request name to the required server_capability in the client.
@@ -298,19 +366,35 @@ function bsp.writeConnectionDetails(connection_details, file_path)
   vim.notify("ConnectionDetails where written to: " .. file_path, vim.log.levels.INFO)
 end
 
-
----@class bsp.BspSetupConfig
----@field handlers {[string]: fun(workspace_dir:string, connection_details:bsp.BspConnectionDetails): boolean}
-
 ---Setup config for bsp.nvim plugin
----@param config bsp.BspSetupConfig
+---@param config? bsp.BspSetupConfig
 ---@return bsp.Client[]
 function bsp.setup(config)
+  config = config or {}
+  config = vim.tbl_deep_extend("force", default_config, config)
+
+  assert(config, "config set")
+
+  if config.log.level then
+    log.set_level(config.log.level)
+  end
+
+  if config.plugins.fidget then
+    if not pcall(require, "bsp.external-plugins.fidget") then
+      vim.notify("fidget could not be loadet", vim.log.levels.ERROR)
+    end
+  end
+
+  if config.ui.enable then
+    if not pcall(require, "bsp-ui") then
+      vim.notify("ui could not be loadet", vim.log.levels.ERROR)
+    end
+  end
+
   local clients = {}
   local connection_details_dict = bsp.findConnectionDetails();
 
   if not connection_details_dict then return clients end
-
   for _, connection_detail in pairs(connection_details_dict) do
     for server_name, handler in pairs(config.handlers) do
       if connection_detail.name == server_name or

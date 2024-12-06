@@ -37,6 +37,18 @@ Plug '616b2f/bsp.nvim'
 
 local bsp = require("bsp")
 bsp.setup({
+  log = {
+    level = vim.log.levels.DEBUG
+  },
+  ui = {
+    -- adds additional ui handlers (currently mainly for test results pop-up)
+    enable = true
+  },
+  plugins = {
+    -- enable Fidget plugin for BSP Task notifications
+    fidget = true
+  },
+  -- default handlers change if you wan't to override
   handlers = {
 
     ['cargo-bsp'] = function (workspace_dir, connection_details)
@@ -117,6 +129,8 @@ BspLog
 BspRestart
 BspRun
 BspTest
+BspTestCase (workes only with dotnet-bsp server)
+BspTestFile (workes only with dotnet-bsp server)
 ```
 
 # Configuration Recipes

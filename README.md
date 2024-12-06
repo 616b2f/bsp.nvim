@@ -36,19 +36,22 @@ Plug '616b2f/bsp.nvim'
 -- require("bp.log").set_level(vim.log.levels.DEBUG)
 
 local bsp = require("bsp")
+-- default setup config
 bsp.setup({
   log = {
-    level = vim.log.levels.DEBUG
+    -- use like
+    -- level = vim.log.levels.DEBUG
+    level = nil
   },
   ui = {
     -- adds additional ui handlers (currently mainly for test results pop-up)
-    enable = true
+    enable = false
   },
   plugins = {
-    -- enable Fidget plugin for BSP Task notifications
-    fidget = true
+    -- enable Fidget plugin for BSP task notifications
+    fidget = false
   },
-  -- default handlers change if you wan't to override
+  -- default handlers, change only if you wan't to override
   handlers = {
 
     ['cargo-bsp'] = function (workspace_dir, connection_details)
@@ -149,85 +152,6 @@ vim.api.nvim_create_autocmd("User",
   end
 })
 ```
-## Notifications via Fidget
-Plugin (fidget.nvim)[https://github.com/j-hui/fidget.nvim] has to be installed.
-```lua
-local bsp = require("bsp")
-local progress = require("fidget.progress")
-local handles = {}
-vim.api.nvim_create_autocmd("User",
-  {
-    group = 'bsp',
-    pattern = 'BspProgress:start',
-    callback = function(ev)
-      local data = ev.data
-      local client = bsp.get_client_by_id(data.client_id)
-      if client then
-        ---@type bsp.TaskStartParams
-        local result = ev.data.result
-        local title = result.dataKind or "BSP-Task"
-        local fallback_message = "started: " .. tostring(result.taskId.id)
-        local message = result.message or fallback_message;
-
-        local tokenId = data.client_id .. ":" .. result.taskId.id
-        handles[tokenId] = progress.handle.create({
-          token = tokenId,
-          title = title,
-          message = message,
-          lsp_client = { name = client.name }
-        })
-      end
-    end
-  })
-
-vim.api.nvim_create_autocmd("User",
-  {
-    group = 'bsp',
-    pattern = 'BspProgress:progress',
-    callback = function(ev)
-      local data = ev.data
-      local percentage = nil
-      ---@type bsp.TaskProgressParams
-      local result = ev.data.result
-      if data.result and data.result.message then
-        local message =
-          (data.result.originId and ( data.result.originId .. ': ') .. data.result.message)
-          or data.result.message
-        if data.result.total and data.result.progress then
-          percentage = math.max(percentage or 0, (data.result.progress / data.result.total * 100))
-        end
-
-        local tokenId = data.client_id .. ":" .. result.taskId.id
-        local handle = handles[tokenId]
-        if handle then
-            local progressMessage = {
-              token = tokenId,
-              message = message,
-              percentage = percentage
-            }
-            handle:report(progressMessage)
-        end
-      end
-    end
-  })
-
-vim.api.nvim_create_autocmd("User",
-  {
-    group = 'bsp',
-    pattern = 'BspProgress:finish',
-    callback = function(ev)
-      local data = ev.data
-      ---@type bsp.TaskFinishParams
-      local result = ev.data.result
-      local tokenId = data.client_id .. ":" .. result.taskId.id
-      local handle = handles[tokenId]
-      if handle then
-        handle:finish()
-      end
-    end
-  })
-```
-
 
 # Credits
 Thanks to the following projects that helped me to build this project.

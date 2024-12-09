@@ -30,13 +30,15 @@ Plug '616b2f/bsp.nvim'
 ```
 
 # Setup
+minimal setup
+```lua
+local bsp = require("bsp")
+bsp.setup({})
+```
+the default config is used then
 
 ```lua
--- Uncomment if you want to set log level to debugging
--- require("bp.log").set_level(vim.log.levels.DEBUG)
-
-local bsp = require("bsp")
--- default setup config
+-- config defaults
 bsp.setup({
   log = {
     -- use like

@@ -838,7 +838,6 @@ function bsp.cleancache_build_target()
       if clientTarget then
         ---@type bsp.CleanCacheParams
         local cleanCacheParams = {
-          originId = utils.new_origin_id(),
           targets = {clientTarget.target.id}
         }
         clientTarget.client.request(

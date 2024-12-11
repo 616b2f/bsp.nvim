@@ -24,8 +24,6 @@ local bsp = {
   -- Export these directly from rpc.
   rpc_response_error = bp_rpc.rpc_response_error,
   client_errors = bp_rpc.client_errors,
-
-
 }
 
 ---@class bsp.BspSetupConfig
@@ -92,11 +90,6 @@ local default_config = {
       return false
     end
   }
-}
-
--- maps request name to the required server_capability in the client.
-bsp._request_name_to_capability = {
-  [ms.workspace_buildTargets] = { 'workspaceBuildTargetsProvider' },
 }
 
 local wait_result_reason = { [-1] = 'timeout', [-2] = 'interrupted', [-3] = 'error' }
@@ -532,7 +525,7 @@ end
 function bsp.test_file_target()
   ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
   local client_targets = {}
-  local clients = require("bsp").get_clients()
+  local clients = bsp.get_clients()
   for _, client in ipairs(clients) do
     for _, target in pairs(client.build_targets) do
       if target.capabilities.canTest then
@@ -565,7 +558,7 @@ function bsp.test_file_target()
         }
       }
       item.client.request(
-        require("bsp.protocol").Methods.buildTarget_sources,
+        ms.buildTarget_sources,
         sourcesParams,
         ---comment
         ---@param err bp.ResponseError|nil
@@ -604,7 +597,6 @@ function bsp.test_file_target()
                     }
                   }
                 }
-                local ms = require("bsp.protocol").Methods
                 item.client.request(
                   ms.buildTarget_test,
                   testParams,
@@ -614,7 +606,7 @@ function bsp.test_file_target()
                   ---@param context bsp.HandlerContext
                   ---@param config table|nil
                   function (err, result, context, config)
-                    vim.notify("BSP-Test status: " .. require("bsp").protocol.StatusCode[result.statusCode])
+                    vim.notify("BSP-Test status: " .. protocol.StatusCode[result.statusCode])
                   end,
                 0)
             end
@@ -628,7 +620,7 @@ end
 function bsp.test_case_target()
   ---@type { client: bsp.Client, target: bsp.BuildTarget }[]
   local client_targets = {}
-  local clients = require("bsp").get_clients()
+  local clients = bsp.get_clients()
   for _, client in ipairs(clients) do
     for _, target in pairs(client.build_targets) do
       if target.capabilities.canTest then
@@ -699,7 +691,6 @@ function bsp.__list_test_cases(item)
             }
           }
         }
-        local ms = require("bsp.protocol").Methods
         item.client.request(
           ms.buildTarget_test,
           testParams,
@@ -709,7 +700,7 @@ function bsp.__list_test_cases(item)
           ---@param context bsp.HandlerContext
           ---@param config table|nil
           function (err, result, context, config)
-            vim.notify("BSP-TestCase status: " .. require("bsp").protocol.StatusCode[result.statusCode])
+            vim.notify("BSP-TestCase status: " .. protocol.StatusCode[result.statusCode])
           end,
         0)
       end
@@ -721,7 +712,7 @@ end
 function bsp.cancel_run_build_target ()
   local run_requests = {}
   local clients = bsp.get_clients()
-  local run_method = require('bsp.protocol').Methods.buildTarget_run
+  local run_method = ms.buildTarget_run
   for _, client in ipairs(clients) do
     for index, request in pairs(client.requests) do
       if request.method == run_method and request.type == "pending" then
@@ -867,6 +858,7 @@ function bsp.cleancache_build_target()
 end
 
 ---@param config bsp.ClientConfig
+---@return integer|nil client_id ID of the client when successful
 function bsp.start(config, opts)
   opts = opts or {}
   local reuse_client = opts.reuse_client
@@ -883,11 +875,7 @@ function bsp.start(config, opts)
       end
     end
   end
-  local client_id = bsp.start_client(config)
-  if client_id == nil then
-    return nil -- bsp.start_client will have printed an error
-  end
-  return client_id
+  return bsp.start_client(config)
 end
 
 ---@private
@@ -1037,6 +1025,7 @@ end
 --- @field trace 'off'|'messages'|'verbose'|nil
 --- @field flags table
 --- @field root_dir URI Workspace root directory
+---@return integer|nil client_id ID of the client when successful
 function bsp.start_client(config)
   local cmd, cmd_args, offset_encoding = validate_client_config(config)
 
@@ -1286,15 +1275,6 @@ function bsp.start_client(config)
       local status, err = pcall(config.before_init, initialize_params, config)
       if not status then
         write_error(bsp.client_errors.BEFORE_INIT_CALLBACK_ERROR, err)
-      end
-    end
-
-    --- @param method string
-    client.supports_method = function(method)
-      local required_capability = bsp._request_name_to_capability[method]
-      -- if we don't know about the method, assume that the client supports it.
-      if required_capability then
-        return true
       end
     end
 

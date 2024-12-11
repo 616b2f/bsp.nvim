@@ -32,9 +32,8 @@ vim.api.nvim_create_autocmd("User",
         ---@type bsp.TaskFinishParams
         local result = ev.data.result
 
-        local tokenId = data.client_id .. ":" .. result.originId
-
         if result.dataKind == bsp.protocol.Constants.TaskFinishDataKind.TestReport then
+          local tokenId = data.client_id .. ":" .. result.originId
 
           ---@type bsp.TestReport
           local test_report = result.data
@@ -70,6 +69,7 @@ vim.api.nvim_create_autocmd("User",
           -- optional: change highlight, otherwise Pmenu is used
           vim.api.nvim_set_option_value('winhl', 'Normal:MyHighlight', {win=win})
         elseif result.dataKind == bsp.protocol.Constants.TaskFinishDataKind.TestFinish then
+          local tokenId = data.client_id .. ":" .. result.originId
 
           ---@type bsp.TestFinish
           local test_finish = result.data

@@ -849,7 +849,11 @@ function bsp.cleancache_build_target()
           ---@param context bsp.HandlerContext
           ---@param config table|nil
           function (err, result, context, config)
-            vim.notify("BSP-CleanCache status: cleaned=" .. tostring(result.cleaned) .. " " .. (result.message or ''))
+            if result then
+              vim.notify("BSP-CleanCache status: cleaned=" .. tostring(result.cleaned) .. " " .. (result.message or ''))
+            elseif err then
+              vim.notify("BSP-CleanCache request error: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
+            end
           end,
         0)
       end

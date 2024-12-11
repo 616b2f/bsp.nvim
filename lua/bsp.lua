@@ -462,7 +462,7 @@ function bsp.compile_build_target()
               if result then
                 vim.notify("BSP-Compilation status: " .. bsp.protocol.StatusCode[result.statusCode], vim.log.levels.INFO)
               elseif err then
-                vim.notify("BSP-Compilation failed: " .. err.message, vim.log.levels.ERROR)
+                vim.notify("BSP-Compilation request failed: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
               end
 
               local ns = vim.api.nvim_create_namespace(clientTarget.client.diagnostics_namespace_name)
@@ -515,7 +515,11 @@ function bsp.test_build_target()
           ---@param context bsp.HandlerContext
           ---@param config table|nil
           function (err, result, context, config)
-            vim.notify("BSP-Test status: " .. bsp.protocol.StatusCode[result.statusCode])
+            if result then
+              vim.notify("BSP-Test status: " .. bsp.protocol.StatusCode[result.statusCode], vim.log.levels.INFO)
+            elseif err then
+              vim.notify("BSP-Test request failed: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
+            end
           end,
         0)
     end
@@ -852,7 +856,7 @@ function bsp.cleancache_build_target()
             if result then
               vim.notify("BSP-CleanCache status: cleaned=" .. tostring(result.cleaned) .. " " .. (result.message or ''))
             elseif err then
-              vim.notify("BSP-CleanCache request error: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
+              vim.notify("BSP-CleanCache request failed: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
             end
           end,
         0)

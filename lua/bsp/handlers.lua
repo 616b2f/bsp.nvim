@@ -18,9 +18,10 @@ end
 --- Writes to BSP console buffer
 ---@param client_name string Name of the client
 ---@param client_id integer ID of the client
+---@param message_type bsp.MessageType ID of the client
 ---@param data string Will be concatenated before being written
-local function write_to_console(client_name, client_id, data)
-  local message = string.format('[bsp:%s(id=%s)] %s', client_name, tostring(client_id), string.gsub(data, '\n', ''))
+local function write_to_console(client_name, client_id, message_type, data)
+  local message = string.format('[%s(id=%s)] %s %s', client_name, tostring(client_id), protocol.MessageType[message_type], string.gsub(data, '\n', ''))
   console:write({message})
 end
 
@@ -154,7 +155,7 @@ M[ms.build_logMessage] = function(_, result, ctx)
     return vim.NIL
   end
 
-  write_to_console(client.name, ctx.client_id, vim.inspect(result))
+  write_to_console(client.name, ctx.client_id, result.type, result.message)
 end
 
 --see: https://build-server-protocol.github.io/docs/specification/#onbuildpublishdiagnostics-notification

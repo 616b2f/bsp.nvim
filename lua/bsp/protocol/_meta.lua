@@ -584,7 +584,7 @@ error('Cannot require a meta file')
 
 ---@class bsp.LogMessageParams
 ---the message type.
----@field type bp.MessageType
+---@field type bsp.MessageType
 ---The task id if any.
 ---@field task? bsp.TaskId
 ---The request id that originated this notification.

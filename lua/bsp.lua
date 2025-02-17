@@ -1546,7 +1546,8 @@ function bsp.start_client(config)
             local supported_targets_ids = vim.iter(result.targets)
               ---@param t bsp.BuildTarget
               :filter(function (t)
-                return next(bsp.__get_intersect(t.languageIds, supported_language_ids)) ~= nil
+                return next(bsp.__get_intersect(t.languageIds, supported_language_ids)) ~= nil and
+                       t.capabilities.canTest == true
               end)
               ---@param t bsp.BuildTarget
               :map(function (t)

@@ -116,6 +116,8 @@ error('Cannot require a meta file')
 ---@field statusCode bsp.StatusCode
 
 ---@class bsp.TestCaseDiscoveredData
+---Unique id of the test case
+---@field id string
 ---Build Target to which the test belongs
 ---@field buildTarget bsp.BuildTargetIdentifier
 ---Display name that can be used in the IDE UI
@@ -237,6 +239,12 @@ error('Cannot require a meta file')
 ---@field location? bsp.Location
 
 ---@class bsp.TestFinish
+---Unique test case ID
+---@field id string
+---Build target to which the test case result belongs to
+---@field buildTarget bsp.BuildTargetIdentifier
+---FullyQualifiedName of the test case to which the result belongs to
+---@field fullyQualifiedName string
 ---Name or description of the test.
 ---@field displayName string
 ---Information about completion of the test, for example an error message.

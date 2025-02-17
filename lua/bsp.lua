@@ -596,9 +596,7 @@ function bsp.test_file_target()
                   targets = { source.buildTarget },
                   dataKind = "dotnet-test",
                   data = {
-                    filters = {
-                      source.source_file_full_path,
-                    }
+                    filter = source.source_file_full_path,
                   }
                 }
                 item.client.request(
@@ -690,9 +688,7 @@ function bsp.__list_test_cases(item)
           targets = { test_case.buildTarget },
           dataKind = "dotnet-test",
           data = {
-            filters = {
-              "FullyQualifiedName=" .. test_case.fullyQualifiedName,
-            }
+            filter = "id==" .. test_case.id,
           }
         }
         item.client.request(

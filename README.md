@@ -49,6 +49,10 @@ bsp.setup({
     -- adds additional ui handlers (currently mainly for test results pop-up)
     enable = false
   },
+  on_start = {
+    -- triggeres test case discovery when the server starts
+    test_case_discovery = false
+  },
   plugins = {
     -- enable Fidget plugin for BSP task notifications
     fidget = false

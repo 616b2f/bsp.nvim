@@ -11,24 +11,10 @@ local nvim_err_writeln, nvim_command = api.nvim_err_writeln, api.nvim_command
 
 local BspGroup = vim.api.nvim_create_augroup('bsp', { clear = true })
 
-local bsp = {
-  protocol = protocol,
-
-  handlers = default_handlers,
-
-  util = utils,
-
-  -- Allow raw RPC access.
-  rpc = bp_rpc,
-
-  -- Export these directly from rpc.
-  rpc_response_error = bp_rpc.rpc_response_error,
-  client_errors = bp_rpc.client_errors,
-}
-
 ---@class bsp.BspSetupConfig
 ---@field log { level: number? }
 ---@field ui { enable: boolean }
+---@field on_start { test_case_discovery: boolean }
 ---@field plugins { fidget: boolean }
 ---@field handlers {[string]: fun(workspace_dir:string, connection_details:bsp.BspConnectionDetails): boolean}
 local default_config = {
@@ -37,6 +23,9 @@ local default_config = {
   },
   ui = {
     enable = false
+  },
+  on_start = {
+    test_case_discovery = false,
   },
   plugins = {
     fidget = false
@@ -91,6 +80,24 @@ local default_config = {
     end
   }
 }
+
+local bsp = {
+  protocol = protocol,
+
+  config = default_config,
+
+  handlers = default_handlers,
+
+  util = utils,
+
+  -- Allow raw RPC access.
+  rpc = bp_rpc,
+
+  -- Export these directly from rpc.
+  rpc_response_error = bp_rpc.rpc_response_error,
+  client_errors = bp_rpc.client_errors,
+}
+
 
 local wait_result_reason = { [-1] = 'timeout', [-2] = 'interrupted', [-3] = 'error' }
 
@@ -363,8 +370,8 @@ end
 ---@param config? bsp.BspSetupConfig
 ---@return bsp.Client[]
 function bsp.setup(config)
-  config = config or {}
-  config = vim.tbl_deep_extend("force", default_config, config)
+  bsp.config = vim.tbl_deep_extend("force", bsp.config, config or {})
+  config = bsp.config
 
   assert(config, "config set")
 
@@ -1536,34 +1543,8 @@ function bsp.start_client(config)
             table.insert(build_target_identifier, target.id)
           end
 
-          if client.server_capabilities.testCaseDiscoveryProvider then
-
-            local supported_language_ids = bsp.__get_intersect(client.config.capabilities.languageIds, client.server_capabilities.testCaseDiscoveryProvider.languageIds)
-            local supported_targets_ids = vim.iter(result.targets)
-              ---@param t bsp.BuildTarget
-              :filter(function (t)
-                return next(bsp.__get_intersect(t.languageIds, supported_language_ids)) ~= nil and
-                       t.capabilities.canTest == true
-              end)
-              ---@param t bsp.BuildTarget
-              :map(function (t)
-                return t.id
-              end)
-              :totable()
-
-            ---@type bsp.TestCaseDiscoveredParams
-            local testCaseDiscoveredParams = {
-                targets = supported_targets_ids,
-                originId = bsp.util.new_origin_id()
-            }
-            client.request(ms.buildTarget_testCaseDiscovery, testCaseDiscoveredParams,
-              ---@param result bsp.TestCaseDiscoveredResult
-              function (_, result, _, _)
-                if result and result.statusCode ~= bsp.protocol.Constants.StatusCode.Ok then
-                  vim.notify("TestCaseDiscovery finished: " .. bsp.protocol.StatusCode[result.statusCode] .. " for client: " .. client.id, vim.log.levels.ERROR)
-                end
-              end,
-              0)
+          if bsp.config.on_start.test_case_discovery == true and client.server_capabilities.testCaseDiscoveryProvider then
+            client.test_case_discovery_request(result.targets)
           end
 
           ---@type bsp.SourcesParams
@@ -1686,6 +1667,37 @@ function bsp.start_client(config)
         write_error(bsp.client_errors.ON_ATTACH_ERROR, err)
       end
     end
+  end
+
+  --- triggers a `buildTarget/testCaseDiscovery` request
+  ---@param targets bsp.BuildTarget[]
+  function client.test_case_discovery_request(targets)
+    local supported_language_ids = bsp.__get_intersect(client.config.capabilities.languageIds, client.server_capabilities.testCaseDiscoveryProvider.languageIds)
+    local supported_targets_ids = vim.iter(targets)
+      ---@param t bsp.BuildTarget
+      :filter(function (t)
+        return next(bsp.__get_intersect(t.languageIds, supported_language_ids)) ~= nil and
+                t.capabilities.canTest == true
+      end)
+      ---@param t bsp.BuildTarget
+      :map(function (t)
+        return t.id
+      end)
+      :totable()
+
+    ---@type bsp.TestCaseDiscoveredParams
+    local testCaseDiscoveredParams = {
+        targets = supported_targets_ids,
+        originId = bsp.util.new_origin_id()
+    }
+    client.request(ms.buildTarget_testCaseDiscovery, testCaseDiscoveredParams,
+      ---@param result bsp.TestCaseDiscoveredResult
+      function (_, result, _, _)
+        if result and result.statusCode ~= bsp.protocol.Constants.StatusCode.Ok then
+          vim.notify("TestCaseDiscovery finished: " .. bsp.protocol.StatusCode[result.statusCode] .. " for client: " .. client.id, vim.log.levels.ERROR)
+        end
+      end,
+      0)
   end
 
   initialize()

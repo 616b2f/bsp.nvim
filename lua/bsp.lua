@@ -659,6 +659,46 @@ function bsp.test_case_target()
   )
 end
 
+---Show user test cases he can pick to run
+---@param client bsp.Client
+---@param test_cases bsp.TestCaseDiscoveredData
+function bsp.__select_test_case_to_run(client, test_cases)
+    vim.ui.select(test_cases, {
+      prompt = "select test case to run",
+      ---@type fun(test_case: bsp.TestCaseDiscoveredData) : string
+      format_item = function (test_case)
+        return test_case.displayName
+            .. " [" .. test_case.source .. "] "
+            .. " : " .. client.name
+      end,
+      kind = "bsp.TestCaseDiscoveredData"
+    },
+      ---@param test_case bsp.TestCaseDiscoveredData
+      function (test_case)
+        local testParams = {
+          originId = utils.new_origin_id(),
+          targets = { test_case.buildTarget },
+          dataKind = "dotnet-test",
+          data = {
+            filter = "id==" .. test_case.id,
+          }
+        }
+        client.request(
+          ms.buildTarget_test,
+          testParams,
+          ---comment
+          ---@param err bp.ResponseError|nil
+          ---@param result bsp.TestResult
+          ---@param context bsp.HandlerContext
+          ---@param config table|nil
+          function (err, result, context, config)
+            vim.notify("BSP-TestCase status: " .. protocol.StatusCode[result.statusCode])
+          end,
+        0)
+      end
+    )
+end
+
 ---@param item { client: bsp.Client, target_id: bsp.BuildTargetIdentifier }
 function bsp.__list_test_cases(item)
   --- find build targets for which test cases have been discovered
@@ -677,41 +717,12 @@ function bsp.__list_test_cases(item)
     end
   end
 
-  if test_cases then
-    vim.ui.select(test_cases, {
-      prompt = "select test case to run",
-      ---@type fun(test_case: bsp.TestCaseDiscoveredData) : string
-      format_item = function (test_case)
-        return test_case.displayName
-            .. " [" .. test_case.source .. "] "
-            .. " : " .. item.client.name
-      end,
-      kind = "bsp.TestCaseDiscoveredData"
-    },
-      ---@param test_case bsp.TestCaseDiscoveredData
-      function (test_case)
-        local testParams = {
-          originId = utils.new_origin_id(),
-          targets = { test_case.buildTarget },
-          dataKind = "dotnet-test",
-          data = {
-            filter = "id==" .. test_case.id,
-          }
-        }
-        item.client.request(
-          ms.buildTarget_test,
-          testParams,
-          ---comment
-          ---@param err bp.ResponseError|nil
-          ---@param result bsp.TestResult
-          ---@param context bsp.HandlerContext
-          ---@param config table|nil
-          function (err, result, context, config)
-            vim.notify("BSP-TestCase status: " .. protocol.StatusCode[result.statusCode])
-          end,
-        0)
-      end
-    )
+  if next(test_cases) then
+    bsp.__select_test_case_to_run(item.client, test_cases)
+  else
+    item.client.test_case_discovery_request({item.target_id}, function (test_cases)
+      bsp.__select_test_case_to_run(item.client, test_cases)
+    end)
   end
 end
 
@@ -1544,7 +1555,20 @@ function bsp.start_client(config)
           end
 
           if bsp.config.on_start.test_case_discovery == true and client.server_capabilities.testCaseDiscoveryProvider then
-            client.test_case_discovery_request(result.targets)
+            local supported_language_ids = bsp.__get_intersect(client.config.capabilities.languageIds, client.server_capabilities.testCaseDiscoveryProvider.languageIds)
+            local supported_targets_ids = vim.iter(result.targets)
+              ---@param t bsp.BuildTarget
+              :filter(function (t)
+                return next(bsp.__get_intersect(t.languageIds, supported_language_ids)) ~= nil and
+                        t.capabilities.canTest == true
+              end)
+              ---@param t bsp.BuildTarget
+              :map(function (t)
+                return t.id
+              end)
+              :totable()
+
+            client.test_case_discovery_request(supported_targets_ids)
           end
 
           ---@type bsp.SourcesParams
@@ -1670,24 +1694,12 @@ function bsp.start_client(config)
   end
 
   --- triggers a `buildTarget/testCaseDiscovery` request
-  ---@param targets bsp.BuildTarget[]
-  function client.test_case_discovery_request(targets)
-    local supported_language_ids = bsp.__get_intersect(client.config.capabilities.languageIds, client.server_capabilities.testCaseDiscoveryProvider.languageIds)
-    local supported_targets_ids = vim.iter(targets)
-      ---@param t bsp.BuildTarget
-      :filter(function (t)
-        return next(bsp.__get_intersect(t.languageIds, supported_language_ids)) ~= nil and
-                t.capabilities.canTest == true
-      end)
-      ---@param t bsp.BuildTarget
-      :map(function (t)
-        return t.id
-      end)
-      :totable()
-
+  ---@param targets bsp.BuildTargetIdentifier[]
+  ---@param callback function(test_cases: bsp.TestCaseDiscoveredData[])?
+  function client.test_case_discovery_request(targets, callback)
     ---@type bsp.TestCaseDiscoveredParams
     local testCaseDiscoveredParams = {
-        targets = supported_targets_ids,
+        targets = targets,
         originId = bsp.util.new_origin_id()
     }
     client.request(ms.buildTarget_testCaseDiscovery, testCaseDiscoveredParams,
@@ -1695,6 +1707,22 @@ function bsp.start_client(config)
       function (_, result, _, _)
         if result and result.statusCode ~= bsp.protocol.Constants.StatusCode.Ok then
           vim.notify("TestCaseDiscovery finished: " .. bsp.protocol.StatusCode[result.statusCode] .. " for client: " .. client.id, vim.log.levels.ERROR)
+        elseif result and result.statusCode == bsp.protocol.Constants.StatusCode.Ok then
+          if type(callback) == "function" then
+            local test_cases = vim.iter(pairs(client.test_cases))
+              :filter(function (k, v)
+                return vim.iter(targets):any(function (target)
+                  return target.uri == k
+                end)
+              end)
+              :fold({}, function (acc, k, values)
+                for _, value in pairs(values) do
+                  table.insert(acc, value)
+                end
+                return acc
+              end)
+            callback(test_cases)
+          end
         end
       end,
       0)

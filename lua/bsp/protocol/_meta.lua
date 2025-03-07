@@ -232,6 +232,10 @@ error('Cannot require a meta file')
 
 ---@alias bsp.TestResultData any
 
+---@class bsp.TestTask
+---BuilTarget of the test being started
+---@field target bsp.BuildTargetIdentifier
+
 ---@class bsp.TestStart
 ---Name or description of the test.
 ---@field displayName string

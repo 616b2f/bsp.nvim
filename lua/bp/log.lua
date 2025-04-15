@@ -95,7 +95,8 @@ do
 
   local path_sep = vim.uv.os_uname().version:match('Windows') and '\\' or '/'
   local function path_join(...)
-    return table.concat(vim.tbl_flatten({ ... }), path_sep)
+    local path_parts = vim.iter({ ... }):flatten():totable()
+    return table.concat(path_parts, path_sep)
   end
   local logfilename = path_join(vim.fn.stdpath('log'), 'bsp.log')
 

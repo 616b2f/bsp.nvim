@@ -111,7 +111,11 @@ end
 ---
 ---@param ... string List to write to the buffer
 local function err_message(...)
-  nvim_err_writeln(table.concat(vim.tbl_flatten({ ... })))
+  local message_parts = vim.iter({ ... })
+    :flatten()
+    :totable()
+  local message = table.concat(message_parts)
+  nvim_err_writeln(message)
   nvim_command('redraw')
 end
 

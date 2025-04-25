@@ -47,7 +47,7 @@ function Console._create_buffer(console)
     if console.buffer_number == -1 then
         -- Create a new buffer with the name "BSP_CONSOLE".
         -- Same name will reuse the current buffer.
-        console.buffer_number = vim.api.nvim_create_buf(true, false)
+        console.buffer_number = vim.api.nvim_create_buf(false, true)
         vim.api.nvim_set_option_value('buftype', 'nofile', { buf = console.buffer_number })
         vim.api.nvim_set_option_value('modified', false, { buf = console.buffer_number })
         vim.api.nvim_buf_set_name(console.buffer_number, console.name)

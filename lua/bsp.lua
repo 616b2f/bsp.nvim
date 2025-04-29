@@ -12,11 +12,11 @@ local nvim_err_writeln, nvim_command = api.nvim_err_writeln, api.nvim_command
 local BspGroup = vim.api.nvim_create_augroup('bsp', { clear = true })
 
 ---@class bsp.BspSetupConfig
----@field log { level: number? }
----@field ui { enable: boolean }
----@field on_start { test_case_discovery: boolean }
----@field plugins { fidget: boolean }
----@field handlers {[string]: fun(workspace_dir:string, connection_details:bsp.BspConnectionDetails): boolean}
+---@field log? { level: number? }
+---@field ui? { enable: boolean }
+---@field on_start? { test_case_discovery: boolean }
+---@field plugins? { fidget: boolean }
+---@field handlers? {[string]: fun(workspace_dir:string, connection_details:bsp.BspConnectionDetails): boolean}
 local default_config = {
   log = {
     level = nil

@@ -675,26 +675,28 @@ function bsp.__select_test_case_to_run(client, test_cases)
     },
       ---@param test_case bsp.TestCaseDiscoveredData
       function (test_case)
-        local testParams = {
-          originId = utils.new_origin_id(),
-          targets = { test_case.buildTarget },
-          dataKind = "dotnet-test",
-          data = {
-            filter = "id==" .. test_case.id,
+        if test_case then
+          local testParams = {
+            originId = utils.new_origin_id(),
+            targets = { test_case.buildTarget },
+            dataKind = "dotnet-test",
+            data = {
+              filter = "id==" .. test_case.id,
+            }
           }
-        }
-        client.request(
-          ms.buildTarget_test,
-          testParams,
-          ---comment
-          ---@param err bp.ResponseError|nil
-          ---@param result bsp.TestResult
-          ---@param context bsp.HandlerContext
-          ---@param config table|nil
-          function (err, result, context, config)
-            vim.notify("BSP-TestCase status: " .. protocol.StatusCode[result.statusCode])
-          end,
-        0)
+          client.request(
+            ms.buildTarget_test,
+            testParams,
+            ---comment
+            ---@param err bp.ResponseError|nil
+            ---@param result bsp.TestResult
+            ---@param context bsp.HandlerContext
+            ---@param config table|nil
+            function (err, result, context, config)
+              vim.notify("BSP-TestCase status: " .. protocol.StatusCode[result.statusCode])
+            end,
+          0)
+        end
       end
     )
 end

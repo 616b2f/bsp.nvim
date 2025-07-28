@@ -1,5 +1,7 @@
 local bsp = require("bsp")
 
+local buf = -1
+
 ---@class TestRunResult
 ---@field test_case_results bsp.TestFinish[]
 ---@field test_report bsp.TestReport
@@ -8,8 +10,14 @@ local bsp = require("bsp")
 local test_run_results = {}
 
 local function display_in_popup(lines)
-  local buf = vim.api.nvim_create_buf(false, true)
+
+  if buf == -1 then
+    buf = vim.api.nvim_create_buf(true, true)
+    vim.api.nvim_buf_set_name(buf, "[BSP test results]")
+  end
+
   vim.api.nvim_buf_set_lines(buf, 0, -1, true, lines)
+
   local opts = {
     title = "Test Report",
     title_pos = "center",
@@ -20,6 +28,7 @@ local function display_in_popup(lines)
     border = "single",
     style = "minimal"
   }
+
   local win = vim.api.nvim_open_win(buf, true, opts)
   -- optional: change highlight, otherwise Pmenu is used
   vim.api.nvim_set_option_value('winhl', 'Normal:MyHighlight', {win=win})

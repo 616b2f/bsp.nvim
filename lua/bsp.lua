@@ -707,21 +707,8 @@ end
 
 ---@param item { client: bsp.Client, target_id: bsp.BuildTargetIdentifier }
 function bsp.__list_test_cases(item)
-  --- find build targets for which test cases have been discovered
-  ---@type bsp.TestCaseDiscoveredData[]
-  local test_cases = {}
-  if item.client.test_cases[item.target_id.uri] then
-    test_cases = item.client.test_cases[item.target_id.uri]
-  elseif item.client.build_targets[item.target_id.uri] then
-    local build_target = item.client.build_targets[item.target_id.uri]
-    for _, depencency in pairs(build_target.dependencies) do
-      if item.client.test_cases[depencency.uri] then
-        for _, test_case in pairs(item.client.test_cases[depencency.uri]) do
-          table.insert(test_cases, test_case)
-        end
-      end
-    end
-  end
+
+  local test_cases = item.client.get_test_cases(item.target_id)
 
   if next(test_cases) then
     bsp.__select_test_case_to_run(item.client, test_cases)
@@ -1699,6 +1686,28 @@ function bsp.start_client(config)
     end
   end
 
+  --- Get test cases from cache for target_id
+  ---@param target_id bsp.BuildTargetIdentifier
+  ---@return bsp.TestCaseDiscoveredData[]
+  function client.get_test_cases(target_id)
+    --- find build targets for which test cases have been discovered
+    ---@type bsp.TestCaseDiscoveredData[]
+    local test_cases = {}
+    if client.test_cases[target_id.uri] then
+      test_cases = client.test_cases[target_id.uri]
+    elseif client.build_targets[target_id.uri] then
+      local build_target = client.build_targets[target_id.uri]
+      for _, depencency in pairs(build_target.dependencies) do
+        if client.test_cases[depencency.uri] then
+          for _, test_case in pairs(client.test_cases[depencency.uri]) do
+            table.insert(test_cases, test_case)
+          end
+        end
+      end
+    end
+    return test_cases
+  end
+
   --- triggers a `buildTarget/testCaseDiscovery` request
   ---@param targets bsp.BuildTargetIdentifier[]
   ---@param callback function(test_cases: bsp.TestCaseDiscoveredData[])?
@@ -1715,18 +1724,12 @@ function bsp.start_client(config)
           vim.notify("TestCaseDiscovery finished: " .. bsp.protocol.StatusCode[result.statusCode] .. " for client: " .. client.id, vim.log.levels.ERROR)
         elseif result and result.statusCode == bsp.protocol.Constants.StatusCode.Ok then
           if type(callback) == "function" then
-            local test_cases = vim.iter(pairs(client.test_cases))
-              :filter(function (k, v)
-                return vim.iter(targets):any(function (target)
-                  return target.uri == k
-                end)
-              end)
-              :fold({}, function (acc, k, values)
-                for _, value in pairs(values) do
-                  table.insert(acc, value)
-                end
-                return acc
-              end)
+            local test_cases = {}
+            for _, target_id in pairs(targets) do
+              for _, test_case in pairs(client.get_test_cases(target_id)) do
+                table.insert(test_cases, test_case)
+              end
+            end
             callback(test_cases)
           end
         end

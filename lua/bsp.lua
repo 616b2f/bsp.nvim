@@ -568,6 +568,17 @@ function bsp.test_file_target()
 
       if not buildTarget then return end
 
+      local client = buildTarget.client
+      local test_cases = client.get_test_cases(buildTarget.target.id)
+
+      if not next(test_cases) then
+        bsp.__select_test_case_to_run(client, test_cases)
+      else
+        item.client.test_case_discovery_request({item.target_id}, function (test_cases)
+          bsp.__select_test_case_to_run(item.client, test_cases)
+        end)
+      end
+
       local item = {client = buildTarget.client, target_id = buildTarget.target.id }
       ---@type bsp.SourcesParams
       local sourcesParams = {
@@ -587,30 +598,31 @@ function bsp.test_file_target()
           local sources = {}
           for _, sources_item in ipairs(result.items) do
             for _, source_item in ipairs(sources_item.sources) do
-              local full_path = sources_item.roots[1] .. "/" .. string.gsub(source_item.uri, "file://", "")
               table.insert(sources, {
-                buildTarget = sources_item.target,
-                source_file_full_path = full_path,
+                target_id = sources_item.target,
+                root_dir = vim.uri_to_fname(sources_item.roots[1]),
+                source_file_path = vim.uri_to_fname(source_item.uri),
                 uri = source_item.uri
               })
             end
           end
           vim.ui.select(sources, {
-            prompt = "select target to to list sources for",
+            prompt = "select file to run test cases for",
             format_item = function (source)
-              return source.source_file_full_path
+              return source.source_file_path
             end,
             kind = "bsp.BuildTarget"
           },
           function (source)
             if source then
+
                 ---@type bsp.TestParams
                 local testParams = {
                   originId = utils.new_origin_id(),
-                  targets = { source.buildTarget },
+                  targets = { source.target_id },
                   dataKind = "dotnet-test",
                   data = {
-                    filter = source.source_file_full_path,
+                    filter = vim.uri_from_fname(vim.fs.joinpath(source.root_dir, source.source_file_path))
                   }
                 }
                 item.client.request(
@@ -649,7 +661,7 @@ function bsp.test_case_target()
   end
 
   vim.ui.select(client_targets, {
-    prompt = "select target to to list sources for",
+    prompt = "select target to list test cases for",
     ---@type fun(item: { client: bsp.Client, target: bsp.BuildTarget }) : string
     format_item = function (item)
       return item.target.displayName

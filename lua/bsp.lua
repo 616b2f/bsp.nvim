@@ -459,28 +459,27 @@ function bsp.compile_build_target()
     },
     ---@param clientTarget { client: bsp.Client, target: bsp.BuildTarget }
     function (clientTarget)
-      if clientTarget then
-          ---@type bsp.CompileParams
-          local compileParams = {
-            originId = utils.new_origin_id(),
-            targets = { clientTarget.target.id }
-          }
-          clientTarget.client.request(
-            ms.buildTarget_compile,
-            compileParams,
-            ---@param result bsp.CompileResult
-            function (err, result)
-              if result then
-                vim.notify("BSP-Compilation status: " .. bsp.protocol.StatusCode[result.statusCode], vim.log.levels.INFO)
-              elseif err then
-                vim.notify("BSP-Compilation request failed: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
-              end
+      if not clientTarget then return end
+      ---@type bsp.CompileParams
+      local compileParams = {
+        originId = utils.new_origin_id(),
+        targets = { clientTarget.target.id }
+      }
+      clientTarget.client.request(
+        ms.buildTarget_compile,
+        compileParams,
+        ---@param result bsp.CompileResult
+        function (err, result)
+          if result then
+            vim.notify("BSP-Compilation status: " .. bsp.protocol.StatusCode[result.statusCode], vim.log.levels.INFO)
+          elseif err then
+            vim.notify("BSP-Compilation request failed: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
+          end
 
-              local ns = vim.api.nvim_create_namespace(clientTarget.client.diagnostics_namespace_name)
-              vim.diagnostic.setqflist({ namespace=ns })
-            end,
-          0)
-      end
+          local ns = vim.api.nvim_create_namespace(clientTarget.client.diagnostics_namespace_name)
+          vim.diagnostic.setqflist({ namespace=ns })
+        end,
+      0)
     end)
 end
 function bsp.test_build_target()
@@ -511,29 +510,30 @@ function bsp.test_build_target()
   },
   ---@param clientTarget { client: bsp.Client, target: bsp.BuildTarget }
   function (clientTarget)
-    if clientTarget then
-        ---@type bsp.TestParams
-        local testParams = {
-          originId = utils.new_origin_id(),
-          targets = { clientTarget.target.id }
-        }
-        clientTarget.client.request(
-          ms.buildTarget_test,
-          testParams,
-          ---comment
-          ---@param err bp.ResponseError|nil
-          ---@param result bsp.TestResult
-          ---@param context bsp.HandlerContext
-          ---@param config table|nil
-          function (err, result, context, config)
-            if result then
-              vim.notify("BSP-Test status: " .. bsp.protocol.StatusCode[result.statusCode], vim.log.levels.INFO)
-            elseif err then
-              vim.notify("BSP-Test request failed: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
-            end
-          end,
-        0)
-    end
+
+    if not clientTarget then return end
+
+    ---@type bsp.TestParams
+    local testParams = {
+      originId = utils.new_origin_id(),
+      targets = { clientTarget.target.id }
+    }
+    clientTarget.client.request(
+      ms.buildTarget_test,
+      testParams,
+      ---comment
+      ---@param err bp.ResponseError|nil
+      ---@param result bsp.TestResult
+      ---@param context bsp.HandlerContext
+      ---@param config table|nil
+      function (err, result, context, config)
+        if result then
+          vim.notify("BSP-Test status: " .. bsp.protocol.StatusCode[result.statusCode], vim.log.levels.INFO)
+        elseif err then
+          vim.notify("BSP-Test request failed: " .. tostring(err.code) .. " " .. (err.message or ''), vim.log.levels.ERROR)
+        end
+      end,
+    0)
   end)
 end
 
@@ -565,6 +565,9 @@ function bsp.test_file_target()
   },
     ---@param buildTarget { client: bsp.Client, target: bsp.BuildTarget }
     function (buildTarget)
+
+      if not buildTarget then return end
+
       local item = {client = buildTarget.client, target_id = buildTarget.target.id }
       ---@type bsp.SourcesParams
       local sourcesParams = {
@@ -658,6 +661,9 @@ function bsp.test_case_target()
   },
     ---@param buildTarget { client: bsp.Client, target: bsp.BuildTarget }
     function (buildTarget)
+
+      if not buildTarget then return end
+
       bsp.__list_test_cases({client = buildTarget.client, target_id = buildTarget.target.id })
     end
   )
@@ -679,28 +685,29 @@ function bsp.__select_test_case_to_run(client, test_cases)
     },
       ---@param test_case bsp.TestCaseDiscoveredData
       function (test_case)
-        if test_case then
-          local testParams = {
-            originId = utils.new_origin_id(),
-            targets = { test_case.buildTarget },
-            dataKind = "dotnet-test",
-            data = {
-              filter = "id==" .. test_case.id,
-            }
+
+        if not test_case then return end
+
+        local testParams = {
+          originId = utils.new_origin_id(),
+          targets = { test_case.buildTarget },
+          dataKind = "dotnet-test",
+          data = {
+            filter = "id==" .. test_case.id,
           }
-          client.request(
-            ms.buildTarget_test,
-            testParams,
-            ---comment
-            ---@param err bp.ResponseError|nil
-            ---@param result bsp.TestResult
-            ---@param context bsp.HandlerContext
-            ---@param config table|nil
-            function (err, result, context, config)
-              vim.notify("BSP-TestCase status: " .. protocol.StatusCode[result.statusCode])
-            end,
-          0)
-        end
+        }
+        client.request(
+          ms.buildTarget_test,
+          testParams,
+          ---comment
+          ---@param err bp.ResponseError|nil
+          ---@param result bsp.TestResult
+          ---@param context bsp.HandlerContext
+          ---@param config table|nil
+          function (err, result, context, config)
+            vim.notify("BSP-TestCase status: " .. protocol.StatusCode[result.statusCode])
+          end,
+        0)
       end
     )
 end

@@ -1,4 +1,5 @@
 local validate = vim.validate
+local fn = vim.fn
 
 M = {}
 
@@ -21,13 +22,7 @@ function M.create_config(server_name, workspace_dir)
   }
 
   if config.on_create_config then
-    local success, mason_path = pcall(require, 'mason-core.path')
-    if not success then
-      error('package mason-registry is not installed, it\'s mandatory for bsp-config')
-      return
-    end
-
-    local server_install_dir = mason_path.package_prefix(server_name)
+    local server_install_dir = fn.expand('$MASON')
     pcall(config.on_create_config, server_install_dir, workspace_dir)
   end
 end

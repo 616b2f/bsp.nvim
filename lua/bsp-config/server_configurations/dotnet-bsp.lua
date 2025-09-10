@@ -9,7 +9,7 @@ return {
         argv = {
           'dotnet',
           'exec',
-          server_install_dir .. '/bin/dotnet-bsp.dll',
+          server_install_dir .. '/packages/dotnet-bsp/bin/dotnet-bsp.dll',
           '--logLevel=Debug',
           '--extensionLogDirectory',
           '.'

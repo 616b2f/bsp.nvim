@@ -7,7 +7,7 @@ return {
         version = "0.1.0",
         bspVersion = "2.1.0",
         argv = {
-          server_install_dir .. '/target/release/server'
+          server_install_dir .. '/packages/cargo-bsp/target/release/server'
         },
       }
 

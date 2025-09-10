@@ -9,9 +9,9 @@ return {
           '--add-opens=java.base/java.lang=ALL-UNNAMED',
           '--add-opens=java.base/java.io=ALL-UNNAMED',
           '--add-opens=java.base/java.util=ALL-UNNAMED',
-          '-Dplugin.dir=' .. server_install_dir .. '/server/build/libs/plugins/',
+          '-Dplugin.dir=' .. server_install_dir .. '/packages/gradle-bsp/server/build/libs/plugins/',
           '-cp',
-          server_install_dir .. '/server/build/libs/server.jar:' .. server_install_dir .. '/server/build/libs/runtime/*',
+          server_install_dir .. '/packages/gradle-bsp/server/build/libs/server.jar:' .. server_install_dir .. '/packages/gradle-bsp/server/build/libs/runtime/*',
           'com.microsoft.java.bs.core.Launcher'
         }
       }

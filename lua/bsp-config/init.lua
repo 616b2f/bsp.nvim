@@ -3,9 +3,6 @@ local fn = vim.fn
 
 M = {}
 
--- local success, mason_registry = pcall(require, 'mason-registry')
--- local installed_packages = mason_registry.get_installed_package_names()
-
 ---Creates the build server configuration
 ---@param server_name string
 ---@param workspace_dir string

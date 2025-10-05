@@ -53,7 +53,6 @@ local function render_test_results(token_id)
   local short_target_path = vim.fs.relpath(test_run_result.workspace_root_dir, full_target_path)
   append_to_output({
     'Target: ' .. (short_target_path or full_target_path),
-    '',
   })
 
   for _, test_case_result in ipairs(test_run_result.test_case_results) do
@@ -62,7 +61,8 @@ local function render_test_results(token_id)
     local status_prefix = '[' .. protocol.TestStatus[status] .. ']'
 
     append_to_output({
-       status_prefix .. ' ' .. test_case_result.displayName
+      '',
+      status_prefix .. ' ' .. test_case_result.displayName
     })
 
     local last_written_line = vim.api.nvim_buf_line_count(buf) - 1

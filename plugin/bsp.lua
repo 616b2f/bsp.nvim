@@ -1,78 +1,8 @@
 local api = vim.api
 local cmd = api.nvim_create_user_command
 
-cmd('BspCompile', function() require('bsp').compile_build_target() end, { nargs = 0 })
-cmd('BspTest', function() require('bsp').test_build_target() end, { nargs = 0 })
-cmd('BspTestFile', function () require('bsp').test_file_target() end, { nargs = 0 })
-cmd('BspTestCase', function () require('bsp').test_case_target() end, { nargs = 0 })
-cmd('BspRun', function() require('bsp').run_build_target() end, { nargs = 0 })
-cmd('BspCancelRun', function() require('bsp').cancel_run_build_target() end , { nargs = 0 })
-
-cmd('BspLog', function() vim.cmd(string.format('tabnew %s', require('bsp').get_log_path())) end, { nargs = 0 })
-cmd('BspConsole', function () require('bsp.bsp-console').open('[BSP console]') end, { nargs = 0 })
-cmd('BspCleanCache', function() require('bsp').cleancache_build_target() end, { nargs = 0 })
-
-local get_clients_from_cmd_args = function(arg)
+local get_bsp_info = function()
   local bsp = require('bsp')
-  local result = {}
-  for id in (arg or ''):gmatch '(%d+)' do
-    local client_id = tonumber(id)
-    assert(client_id, 'client_id is not a number')
-    result[client_id] = bsp.get_client_by_id(client_id)
-  end
-  if vim.tbl_isempty(result) then
-    return require('bsp').get_clients()
-  end
-  return vim.tbl_values(result)
-end
-
-local bsp_get_active_client_ids = function(arg)
-  local bsp = require('bsp')
-  local clients = vim.tbl_map(function(client)
-    return ('%d (%s)'):format(client.id, client.name)
-  end, bsp.get_clients())
-
-  local items = vim.tbl_filter(
-    function(s)
-      return s:sub(1, #arg) == arg
-    end,
-    clients)
-  table.sort(items)
-  return items
-end
-
-cmd('BspRestart', function(info)
-  local detach_clients = {}
-  for _, client in ipairs(get_clients_from_cmd_args(info.args)) do
-    client.stop()
-    detach_clients[client.name] = client
-  end
-  local timer = vim.loop.new_timer()
-  timer:start(
-    500,
-    100,
-    vim.schedule_wrap(function()
-      for client_name, client in pairs(detach_clients) do
-        if client.is_stopped() then
-          require('bsp').start_client(client.config)
-          detach_clients[client_name] = nil
-        end
-      end
-
-      if next(detach_clients) == nil and not timer:is_closing() then
-        timer:close()
-      end
-    end)
-  )
-end, {
-  desc = 'Manually restart the given build server client(s)',
-  nargs = '?',
-  complete = bsp_get_active_client_ids,
-})
-
-cmd('BspInfo', function()
-  local bsp = require('bsp')
-
   local lines = {}
   table.insert(lines, "Log file: " .. bsp.get_log_path())
   table.insert(lines, "")
@@ -104,8 +34,62 @@ cmd('BspInfo', function()
   local win = vim.api.nvim_open_win(buf, true, opts)
   -- optional: change highlight, otherwise Pmenu is used
   vim.api.nvim_set_option_value('winhl', 'Normal:MyHighlight', {win=win})
-end, { nargs = 0 })
+end
 
+local get_clients_from_cmd_args = function(arg)
+  local bsp = require('bsp')
+  local result = {}
+  for id in (arg or ''):gmatch '(%d+)' do
+    local client_id = tonumber(id)
+    assert(client_id, 'client_id is not a number')
+    result[client_id] = bsp.get_client_by_id(client_id)
+  end
+  if vim.tbl_isempty(result) then
+    return require('bsp').get_clients()
+  end
+  return vim.tbl_values(result)
+end
+
+local bsp_server_restart = function(info)
+  local detach_clients = {}
+  for _, client in ipairs(get_clients_from_cmd_args(info.args)) do
+    client.stop()
+    detach_clients[client.name] = client
+  end
+  local timer = vim.loop.new_timer()
+  assert(timer, "timer could not be created")
+  timer:start(
+    500,
+    100,
+    vim.schedule_wrap(function()
+      for client_name, client in pairs(detach_clients) do
+        if client.is_stopped() then
+          require('bsp').start_client(client.config)
+          detach_clients[client_name] = nil
+        end
+      end
+
+      if next(detach_clients) == nil and not timer:is_closing() then
+        timer:close()
+      end
+    end)
+  )
+end
+
+local bsp_get_active_client_ids = function(arg)
+  local bsp = require('bsp')
+  local clients = vim.tbl_map(function(client)
+    return ('%d (%s)'):format(client.id, client.name)
+  end, bsp.get_clients())
+
+  local items = vim.tbl_filter(
+    function(s)
+      return s:sub(1, #arg) == arg
+    end,
+    clients)
+  table.sort(items)
+  return items
+end
 
 cmd('BspCreateConfig',
   ---@param info { name: string, args: string }
@@ -129,3 +113,43 @@ cmd('BspCreateConfig',
   }
 )
 
+local commands = {
+  ['compile'] = function() require('bsp').compile_build_target() end,
+  ['info'] = get_bsp_info,
+  ['log'] = function() vim.cmd(string.format('tabnew %s', require('bsp').get_log_path())) end,
+  ['restart'] = bsp_server_restart,
+  ['console'] = function () require('bsp.bsp-console').open('[BSP console]') end,
+  ['clean-cache'] = function() require('bsp').cleancache_build_target() end,
+  ['run'] = function() require('bsp').run_build_target() end,
+  ['cancel-run'] = function() require('bsp').cancel_run_build_target() end,
+  ['test'] = function() require('bsp').test_build_target() end,
+  ['test-file'] = function () require('bsp').test_file_target() end,
+  ['test-case'] = function () require('bsp').test_case_target() end,
+}
+
+cmd('Bsp',
+  ---@param info { name: string, args: string }
+  function(info)
+
+    local req_command = info.args
+    local command = commands[req_command]
+
+    if not command then
+      print('Not a valid command: ' .. req_command)
+      return
+    end
+
+    command()
+  end,
+  {
+    desc = 'Run a BSP command',
+    nargs = '?',
+    complete = function ()
+      return vim.iter(commands)
+        :map(function(k, _)
+          return k
+        end)
+        :totable()
+    end
+  }
+)

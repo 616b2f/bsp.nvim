@@ -574,8 +574,8 @@ function bsp.test_file_target()
       if not next(test_cases) then
         bsp.__select_test_case_to_run(client, test_cases)
       else
-        item.client.test_case_discovery_request({item.target_id}, function (test_cases)
-          bsp.__select_test_case_to_run(item.client, test_cases)
+        client.test_case_discovery_request({buildTarget.target.id}, function (inner_test_cases)
+          bsp.__select_test_case_to_run(client, inner_test_cases)
         end)
       end
 
@@ -601,7 +601,9 @@ function bsp.test_file_target()
               table.insert(sources, {
                 target_id = sources_item.target,
                 root_dir = vim.uri_to_fname(sources_item.roots[1]),
-                source_file_path = vim.uri_to_fname(source_item.uri),
+                -- vim.uri_to_fname always adds an / as a prefix, we don't want
+                -- this here
+                source_file_path = source_item.uri:gsub('^file://', ''),
                 uri = source_item.uri
               })
             end
@@ -689,8 +691,9 @@ function bsp.__select_test_case_to_run(client, test_cases)
       prompt = "select test case to run",
       ---@type fun(test_case: bsp.TestCaseDiscoveredData) : string
       format_item = function (test_case)
+        local test_case_source = vim.fs.relpath(client.workspace_dir, test_case.source) or test_case.source
         return test_case.displayName
-            .. " [" .. test_case.source .. "] "
+            .. " [" .. test_case_source .. "] "
             .. " : " .. client.name
       end,
       kind = "bsp.TestCaseDiscoveredData"

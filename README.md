@@ -129,17 +129,18 @@ After the setup you have to create a config file for your BSP Server, that is lo
 # Available commands
 
 ```sh
-BspCleanCache
-BspCompile
-BspConsole
 BspCreateConfig <bsp_server_name> # requires "mason-registry" package to be installed
-BspInfo
-BspLog
-BspRestart
-BspRun
-BspTest
-BspTestCase (workes only with dotnet-bsp server)
-BspTestFile (workes only with dotnet-bsp server)
+Bsp <command> # <command> can be one of following
+    clean-cache
+    compile
+    console
+    info
+    log
+    restart
+    run
+    test
+    test-case # (workes only with dotnet-bsp server)
+    test-file # (workes only with dotnet-bsp server)
 ```
 
 # Configuration Recipes

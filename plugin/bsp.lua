@@ -50,9 +50,9 @@ local get_clients_from_cmd_args = function(arg)
   return vim.tbl_values(result)
 end
 
-local bsp_server_restart = function(info)
+local bsp_server_restart = function(args)
   local detach_clients = {}
-  for _, client in ipairs(get_clients_from_cmd_args(info.args)) do
+  for _, client in ipairs(get_clients_from_cmd_args(args)) do
     client.stop()
     detach_clients[client.name] = client
   end
@@ -74,21 +74,6 @@ local bsp_server_restart = function(info)
       end
     end)
   )
-end
-
-local bsp_get_active_client_ids = function(arg)
-  local bsp = require('bsp')
-  local clients = vim.tbl_map(function(client)
-    return ('%d (%s)'):format(client.id, client.name)
-  end, bsp.get_clients())
-
-  local items = vim.tbl_filter(
-    function(s)
-      return s:sub(1, #arg) == arg
-    end,
-    clients)
-  table.sort(items)
-  return items
 end
 
 cmd('BspCreateConfig',

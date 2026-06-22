@@ -10,7 +10,8 @@ local protocol = {}
         'csharp',
         'rust',
         'scala',
-        'kotlin'
+        'kotlin',
+        'swift'
       }
     }
   end

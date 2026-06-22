@@ -67,6 +67,16 @@ local default_config = {
       return false
     end,
 
+    ['swift-bsp'] = function(workspace_dir, connection_details)
+        for name, type in vim.fs.dir(workspace_dir) do
+            if (type == 'file') and name:match("^buildServer.json$") then
+                return true
+            end
+        end
+
+        return false
+    end,
+
     ['*'] = function (workspace_dir, connection_details)
       -- .bsp/*.json
       for name, type in vim.fs.dir(workspace_dir .. "/.bsp/") do
@@ -353,6 +363,15 @@ function bsp.findConnectionDetails ()
       end
     end
   end
+
+  -- swift-bsp expects a `buildServer.json` in the root of the repository.
+  local buildServerFile = vim.fn.expand("buildServer.json")
+  if vim.uv.fs_stat(buildServerFile) then
+      local json = vim.fn.join(vim.fn.readfile(buildServerFile), '\n')
+      local config = vim.json.decode(json)
+      configs[buildServerFile] = config
+  end
+
   return configs
 end
 

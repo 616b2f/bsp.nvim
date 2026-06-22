@@ -93,7 +93,7 @@ cmd('BspCreateConfig',
     desc = 'Create new configuration for specified BSP server in current directory',
     nargs = '?',
     complete = function ()
-      return { "dotnet-bsp", "cargo-bsp", "gradle-bsp" }
+      return { "dotnet-bsp", "cargo-bsp", "gradle-bsp", "swift-bsp" }
     end
   }
 )
